@@ -140,14 +140,24 @@ jobs:
           ls -l app/keystores/
           cat app/keystores/keystore.properties | sed 's/\(Password=\).*/\1***/'
 
+      # Only non-empty values are written: the secrets-gradle-plugin turns every
+      # local.properties entry into a BuildConfig field, and an empty value emits
+      # `public static final String X = ;` which does not compile.
       - name: Inject optional build credentials
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+          STEAMGRIDDB_API_KEY: ${{ secrets.STEAMGRIDDB_API_KEY }}
+          CLOUD_PROJECT_NUMBER: ${{ secrets.CLOUD_PROJECT_NUMBER }}
         run: |
-          cat > local.properties <<EOF
-          POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}
-          POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}
-          STEAMGRIDDB_API_KEY=${{ secrets.STEAMGRIDDB_API_KEY }}
-          CLOUD_PROJECT_NUMBER=${{ secrets.CLOUD_PROJECT_NUMBER }}
-          EOF
+          : > local.properties
+          for key in POSTHOG_API_KEY POSTHOG_HOST STEAMGRIDDB_API_KEY CLOUD_PROJECT_NUMBER; do
+            value="${!key:-}"
+            if [ -n "$value" ]; then
+              echo "$key=$value" >> local.properties
+            fi
+          done
+          echo "local.properties entries: $(grep -c '=' local.properties || true)"
 
       - name: Build release-signed APKs
         run: |
