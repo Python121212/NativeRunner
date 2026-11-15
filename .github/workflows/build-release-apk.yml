@@ -38,6 +38,10 @@ on:
         description: "GitHub Release にAPKを添付する"
         type: boolean
         default: true
+      timings:
+        description: "タスク毎の所要時間を計測（configuration cache を無効化して実行）"
+        type: boolean
+        default: false
   push:
     branches: [ main ]
 
@@ -197,6 +201,7 @@ jobs:
         env:
           FLAVORS: ${{ inputs.flavors || 'legacy' }}
           FAST: ${{ inputs.fast || 'false' }}
+          TIMINGS: ${{ inputs.timings || 'false' }}
         run: |
           set -euo pipefail
           TASKS=""
@@ -213,9 +218,16 @@ jobs:
             echo "fast mode: R8 / resource shrinking disabled"
           fi
 
+          # The task-timer listeners are not configuration-cache compatible, so
+          # timings runs trade the configuration cache for measurement.
+          TIMER_ARGS=""
+          if [ "${TIMINGS}" = "true" ]; then
+            TIMER_ARGS="--init-script scripts/ci/task-timer.gradle --no-configuration-cache"
+            echo "timings mode: configuration cache disabled"
+          fi
+
           ./gradlew --console=plain --stacktrace --build-cache \
-            --init-script scripts/ci/task-timer.gradle \
-            $SPEED $TASKS 2>&1 | tee /tmp/gradle-build.log
+            $TIMER_ARGS $SPEED $TASKS 2>&1 | tee /tmp/gradle-build.log
 
           find app/build/outputs/apk -name '*.apk' -printf '%s %p\n' || true
 
