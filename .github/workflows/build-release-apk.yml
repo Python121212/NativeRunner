@@ -1,10 +1,16 @@
 name: Build Release APK
 
-# Produces release-signed APKs (legacy + modern flavors) and attaches them to a
-# GitHub release so they can be downloaded without logging in to Actions.
+# Produces release-signed APKs and attaches them to a GitHub release.
 #
 # Signing key: ci/release/release-keystore.p12 (see ci/release/README.md).
 # If the KEYSTORE_BASE64 secret is set, that secret takes precedence.
+#
+# Speed switches (see README in scripts/ci):
+#   -PskipReleaseLint=true     skip the release "vital lint" gate
+#   -PciCacheDependencies=true reuse the dependency cache instead of re-resolving
+#   -PfastBuild=true           skip R8 / resource shrinking (bigger, less optimized)
+# Per-task timings come from scripts/ci/task-timer.gradle and are published to
+# the `ci-logs` branch together with the build log.
 
 on:
   workflow_dispatch:
@@ -16,6 +22,22 @@ on:
           - build
           - bootstrap-keystore
         default: build
+      flavors:
+        description: "build only what you need"
+        type: choice
+        options:
+          - legacy
+          - modern
+          - both
+        default: legacy
+      fast:
+        description: "R8/リソース圧縮をスキップして高速化（未最適化・サイズ増）"
+        type: boolean
+        default: false
+      publish_release:
+        description: "GitHub Release にAPKを添付する"
+        type: boolean
+        default: true
   push:
     branches: [ main ]
 
@@ -25,6 +47,10 @@ concurrency:
 
 permissions:
   contents: write
+
+env:
+  UPSTREAM_REPO: utkarshdalal/GameNative
+  UPSTREAM_SHA: 449decb3a51343e3ccd4aebfda8d5caf20cc84b5
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -78,8 +104,10 @@ jobs:
   build:
     if: github.event_name != 'workflow_dispatch' || inputs.mode == 'build'
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 120
     steps:
+      - uses: actions/checkout@v4
+
       - name: Free disk space
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift
@@ -93,8 +121,6 @@ jobs:
           sudo swapon /mnt/swapfile.ci
           free -m
 
-      - uses: actions/checkout@v4
-
       - name: Restore large binary assets (assets / jniLibs / bundletool)
         run: scripts/fetch-large-assets.sh
 
@@ -102,15 +128,23 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
 
+      # Restores/saves the Gradle user home (dependency cache, transforms and
+      # the local build cache), which is what makes repeat builds much faster.
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
-      - name: Install Android SDK packages
+      - name: Install Android SDK packages (only if missing)
         run: |
-          SDKMANAGER="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-          yes | "$SDKMANAGER" --install "platforms;android-36" "build-tools;35.0.0" "platform-tools" || true
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ -d "$SDK/platforms/android-36" ] && ls -d "$SDK"/build-tools/*/ >/dev/null 2>&1; then
+            echo "SDK packages already present"
+          else
+            yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+            yes | "$SDKMANAGER" --install "platforms;android-36" "build-tools;35.0.0" "platform-tools" || true
+          fi
           df -h /
 
       - name: Configure release keystore
@@ -138,7 +172,7 @@ jobs:
             cp ci/release/keystore.properties app/keystores/keystore.properties
           fi
           ls -l app/keystores/
-          cat app/keystores/keystore.properties | sed 's/\(Password=\).*/\1***/'
+          sed 's/\(Password=\).*/\1***/' app/keystores/keystore.properties
 
       # Only non-empty values are written: the secrets-gradle-plugin turns every
       # local.properties entry into a BuildConfig field, and an empty value emits
@@ -160,16 +194,34 @@ jobs:
           echo "local.properties entries: $(grep -c '=' local.properties || true)"
 
       - name: Build release-signed APKs
+        env:
+          FLAVORS: ${{ inputs.flavors || 'legacy' }}
+          FAST: ${{ inputs.fast || 'false' }}
         run: |
           set -euo pipefail
-          ./gradlew --no-daemon --stacktrace -Pkotlin.daemon.jvmargs=-Xmx4g \
-            :app:assembleLegacyRelease-signed 2>&1 | tee /tmp/gradle-build.log
-          ./gradlew --stop || true
-          find app/build/outputs/apk -name '*.apk' -printf '%s %p\n'
+          TASKS=""
+          case "${FLAVORS}" in
+            legacy) TASKS=":app:assembleLegacyRelease-signed" ;;
+            modern) TASKS=":app:assembleModernRelease-signed" ;;
+            both)   TASKS=":app:assembleLegacyRelease-signed :app:assembleModernRelease-signed" ;;
+            *) echo "unknown flavors input: ${FLAVORS}"; exit 1 ;;
+          esac
 
-      # Build logs are mirrored into the `ci-logs` branch (artifact and log
-      # downloads redirect to hosts that automation cannot always reach) and the
-      # failure reason is surfaced as a check annotation.
+          SPEED="-PskipReleaseLint=true -PciCacheDependencies=true"
+          if [ "${FAST}" = "true" ]; then
+            SPEED="$SPEED -PfastBuild=true"
+            echo "fast mode: R8 / resource shrinking disabled"
+          fi
+
+          ./gradlew --console=plain --stacktrace --build-cache \
+            --init-script scripts/ci/task-timer.gradle \
+            $SPEED $TASKS 2>&1 | tee /tmp/gradle-build.log
+
+          find app/build/outputs/apk -name '*.apk' -printf '%s %p\n' || true
+
+      # Build logs and per-task timings are mirrored into the `ci-logs` branch
+      # (artifact and log downloads redirect to hosts that automation cannot
+      # always reach) and the failure reason is surfaced as a check annotation.
       - name: Publish build log
         if: always()
         env:
@@ -177,15 +229,18 @@ jobs:
         run: |
           set -uo pipefail
           LOG=".ci-logs/gradle-${RUN_ID}.log"
+          mkdir -p .ci-logs
           if [ -f /tmp/gradle-build.log ]; then
+            {
+              echo "=== per-task timings (slowest 40) ==="
+              grep -P '^TIMER\t' /tmp/gradle-build.log | sort -t$'\t' -k2 -nr | head -40 || true
+              echo "=== build log (tail) ==="
+              tail -c 2500000 /tmp/gradle-build.log || true
+            } > "$LOG"
             EXCERPT="$(awk '/What went wrong/{f=1} f' /tmp/gradle-build.log | head -40)"
             [ -z "$EXCERPT" ] && EXCERPT="$(tail -40 /tmp/gradle-build.log)"
             ESCAPED="$(printf '%s\n' "$EXCERPT" | head -c 3500 | sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN{ORS="%0A"} {print}')"
             echo "::error title=gradle-log-${RUN_ID}::$ESCAPED"
-          fi
-          mkdir -p .ci-logs
-          if [ -f /tmp/gradle-build.log ]; then
-            tail -c 3000000 /tmp/gradle-build.log > "$LOG" || true
           else
             echo "no gradle log captured" > "$LOG"
           fi
@@ -198,7 +253,6 @@ jobs:
           else
             echo "log push failed:"
             tail -5 /tmp/push.log
-            echo "::error title=ci-logs-push::$(tail -5 /tmp/push.log | tr '\n' ' ' | head -c 500)"
           fi
 
       - name: Verify APK signatures
@@ -206,7 +260,6 @@ jobs:
           set -euo pipefail
           BUILD_TOOLS="$(ls -d "${ANDROID_HOME:-$ANDROID_SDK_ROOT}"/build-tools/*/ 2>/dev/null | sort -V | tail -1)"
           APKSIGNER="${BUILD_TOOLS}apksigner"
-          echo "using $APKSIGNER"
           for apk in $(find app/build/outputs/apk -name '*.apk'); do
             echo "== $apk"
             "$APKSIGNER" verify --print-certs "$apk"
@@ -216,19 +269,18 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          cp app/build/outputs/apk/legacy/release-signed/*.apk "out/GameNative-legacy-release-signed.apk"
+          if ls app/build/outputs/apk/legacy/release-signed/*.apk >/dev/null 2>&1; then
+            cp app/build/outputs/apk/legacy/release-signed/*.apk "out/GameNative-legacy-release-signed.apk"
+          fi
           if ls app/build/outputs/apk/modern/release-signed/*.apk >/dev/null 2>&1; then
             cp app/build/outputs/apk/modern/release-signed/*.apk "out/GameNative-modern-release-signed.apk"
           fi
           ls -lh out/
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-signed-apk
-          path: out/*.apk
-          retention-days: 30
-
+      # A release asset is the only distribution channel: uploading the same APK
+      # twice (artifact + release) wasted a chunk of the run time.
       - name: Publish APKs to a GitHub release
+        if: github.event_name == 'push' || inputs.publish_release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: apk-${{ github.run_number }}
@@ -237,8 +289,16 @@ jobs:
           gh release create "$TAG" out/*.apk \
             --target "${{ github.sha }}" \
             --title "Release APK #${{ github.run_number }}" \
-            --notes "Automated release-signed build of \`${{ github.sha }}\`.
+            --notes "Automated release-signed build of \`${{ github.sha }}\` (flavors: ${{ inputs.flavors || 'legacy' }}).
 
           - 署名: ci/release のリリース鍵（自己署名）
           - 上流 GameNative とは署名が異なるため、既存インストールの上書き更新はできません
           - ビルドログ: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Upload APK as workflow artifact
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release == false
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-signed-apk
+          path: out/*.apk
+          retention-days: 14
