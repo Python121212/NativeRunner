@@ -89,6 +89,7 @@ fun PreLaunchRiskDialog(
 private fun labelFor(code: LaunchRiskCode): Int = when (code) {
     LaunchRiskCode.GPU_DRIVER_MISMATCH -> R.string.launch_risk_gpu_driver
     LaunchRiskCode.NO_DXVK -> R.string.launch_risk_no_dxvk
+    LaunchRiskCode.DXVK_WRONG_ARCH -> R.string.launch_risk_dxvk_arch
     LaunchRiskCode.VRAM_OVER_COMMIT -> R.string.launch_risk_vram
     LaunchRiskCode.LOW_FREE_RAM -> R.string.launch_risk_low_ram
     LaunchRiskCode.LOW_FREE_STORAGE -> R.string.launch_risk_low_storage

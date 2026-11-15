@@ -3548,4 +3548,7 @@
     <string name="session_risk_memory_body">Android is trying to free memory and may close this app.\n\n%1$s</string>
     <string name="session_risk_ack">Understood</string>
     <string name="session_risk_ack_hint">Lower the graphics settings or stop for a while if this repeats.</string>
+
+    <!-- arm64ec DXVK -->
+    <string name="launch_risk_dxvk_arch">The DXVK build does not match this Wine (arm64ec)</string>
 </resources>

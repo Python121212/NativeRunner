@@ -297,7 +297,11 @@ object GpuCompat {
      *
      * @return human readable list of what changed, empty when nothing did
      */
-    fun repairContainer(container: Container, report: GpuCompatReport): List<String> {
+    fun repairContainer(
+        container: Container,
+        report: GpuCompatReport,
+        memoryBudgetMb: Int = 0,
+    ): List<String> {
         val changes = mutableListOf<String>()
 
         val bionic = container.containerVariant.orEmpty().equals(Container.BIONIC, ignoreCase = true)
@@ -326,6 +330,44 @@ object GpuCompat {
             Timber.tag(TAG).i("Removed non-Adreno env vars: %s", removedEnv.joinToString(", "))
         }
 
+        // arm64ec Wine cannot load an x86_64 DXVK, and a container that is not on DXVK at all has
+        // no chance at Direct3D 11. Both are fixed by pointing the container at an arm64ec build.
+        if (container.wineVersion.orEmpty().contains("arm64ec", ignoreCase = true)) {
+            val wrapper = container.dxWrapper.orEmpty()
+            if (!wrapper.lowercase(Locale.US).contains("dxvk")) {
+                container.dxWrapper = "dxvk"
+                changes += "dxwrapper ${wrapper.ifEmpty { "(none)" }} -> dxvk"
+                Timber.tag(TAG).i("arm64ec Wine: dxwrapper '%s' -> dxvk", wrapper)
+            }
+            val dxConfig = KeyValueSet(container.dxWrapperConfig)
+            val version = dxConfig.get("version")
+            if (!ExtraComponents.isArm64ecComponent(version)) {
+                val replacement = ExtraComponents.RECOMMENDED_ARM64EC_DXVK
+                dxConfig.put("version", replacement)
+                container.dxWrapperConfig = dxConfig.toString()
+                changes += "dxvk ${version.ifEmpty { "(default)" }} -> $replacement"
+                Timber.tag(TAG).i("arm64ec Wine: DXVK %s -> %s", version, replacement)
+            }
+        }
+
+        // A 4 GB video memory request on a phone that has 2 GB free is what turns a slow session
+        // into a session the low-memory killer ends. Bring the request inside what is actually
+        // available instead of letting the driver find out the hard way.
+        if (memoryBudgetMb > 0) {
+            val driverConfig = KeyValueSet(container.graphicsDriverConfig)
+            val configured = driverConfig.get("maxDeviceMemory", "0").toIntOrNull() ?: 0
+            if (configured > memoryBudgetMb) {
+                driverConfig.put("maxDeviceMemory", memoryBudgetMb.toString())
+                container.graphicsDriverConfig = driverConfig.toString()
+                changes += "maxDeviceMemory $configured -> $memoryBudgetMb MB"
+                Timber.tag(TAG).i(
+                    "Clamped the video memory request from %dMB to the %dMB budget",
+                    configured,
+                    memoryBudgetMb,
+                )
+            }
+        }
+
         return changes
     }
 
@@ -336,7 +378,11 @@ object GpuCompat {
      * True when [repairContainer] would actually change this container, so the pre-launch dialog
      * only offers the repair when there is one.
      */
-    fun canRepair(container: Container, report: GpuCompatReport): Boolean {
+    fun canRepair(
+        container: Container,
+        report: GpuCompatReport,
+        memoryBudgetMb: Int = 0,
+    ): Boolean {
         val bionic = container.containerVariant.orEmpty().equals(Container.BIONIC, ignoreCase = true)
         val wouldSwitchDriver = report.family.isKnownNonAdreno &&
             !bionic &&
@@ -344,7 +390,16 @@ object GpuCompat {
             !isBionicWrapperDriver(container.graphicsDriver) &&
             container.graphicsDriver != UNIVERSAL_DRIVER
         val wouldStripEnv = !report.family.isAdreno && turnipEnvKeys(container.envVars).isNotEmpty()
-        return wouldSwitchDriver || wouldStripEnv
+        val configuredVram = KeyValueSet(container.graphicsDriverConfig)
+            .get("maxDeviceMemory", "0").toIntOrNull() ?: 0
+        val wouldClampVram = memoryBudgetMb > 0 && configuredVram > memoryBudgetMb
+        val wouldFixArm64ecDxvk = container.wineVersion.orEmpty().contains("arm64ec", ignoreCase = true) &&
+            run {
+                val wrapper = container.dxWrapper.orEmpty().lowercase(Locale.US)
+                !wrapper.contains("dxvk") ||
+                    !ExtraComponents.isArm64ecComponent(KeyValueSet(container.dxWrapperConfig).get("version"))
+            }
+        return wouldSwitchDriver || wouldStripEnv || wouldClampVram || wouldFixArm64ecDxvk
     }
 
     /**

@@ -27,6 +27,7 @@ import app.gamenative.ui.screen.xserver.RadialMenuCoordinator
 import app.gamenative.utils.AppExitRecorder
 import app.gamenative.utils.ContainerMigrator
 import app.gamenative.utils.DebugReportUtils
+import app.gamenative.utils.MemoryReclaimer
 import app.gamenative.utils.PersistentLog
 import app.gamenative.utils.SessionRisk
 import app.gamenative.utils.DeviceInfo
@@ -121,9 +122,13 @@ class PluviaApp : SplitCompatApplication() {
             override fun onTrimMemory(level: Int) {
                 if (level < ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) return
                 if (!PowerManager.isGameStarted) return
+                // Give back what this app can regenerate before asking the user to act.
+                val freedMb = MemoryReclaimer.reclaim(this@PluviaApp) / 1_048_576
                 SessionRisk.raise(
                     SessionRisk.Kind.MEMORY,
-                    "onTrimMemory($level): threshold ${if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) "critical" else "low"}",
+                    "onTrimMemory($level): threshold " +
+                        (if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) "critical" else "low") +
+                        ", freed ${freedMb}MB",
                 )
             }
         })

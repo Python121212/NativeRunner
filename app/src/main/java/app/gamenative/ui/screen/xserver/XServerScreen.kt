@@ -162,6 +162,10 @@ import app.gamenative.utils.ExecutableSelectionUtils
 import app.gamenative.ui.component.dialog.PreLaunchRiskDialog
 import app.gamenative.utils.GpuCompat
 import app.gamenative.utils.GpuCompatReport
+import app.gamenative.utils.ManifestInstaller
+import app.gamenative.utils.MemoryBudget
+import app.gamenative.utils.ExtraComponents
+import app.gamenative.utils.ManifestEntry
 import app.gamenative.utils.LaunchRisk
 import app.gamenative.utils.SessionRisk
 import app.gamenative.utils.LaunchRiskAssessor
@@ -2573,7 +2577,11 @@ fun XServerScreen(
                             // worth one confirmation first.
                             val gpuReport = GpuCompat.evaluateContainer(context, container)
                             val risks = LaunchRiskAssessor.assess(context, container, gpuReport)
-                            val canRepair = GpuCompat.canRepair(container, gpuReport)
+                            val canRepair = GpuCompat.canRepair(
+                                container,
+                                gpuReport,
+                                MemoryBudget.vramBudgetMb(context),
+                            )
                             if (risks.isNotEmpty()) {
                                 val choice = promptForLaunchRisks(risks, canRepair) {
                                     Handler(Looper.getMainLooper()).post { preLaunchPrompt = it }
@@ -6407,6 +6415,38 @@ private suspend fun extractDXWrapperComponent(
     }
 }
 
+/**
+ * Installs an arm64ec DXVK build from [ExtraComponents] as a content profile, so the launch after
+ * this one finds it in the normal install list. Returns null for anything that is not one of those
+ * builds or when the download fails, in which case the caller keeps Wine's own DLLs.
+ */
+private suspend fun installArm64ecDxWrapper(
+    context: Context,
+    dxwrapper: String,
+): ContentProfile? {
+    val entry = ExtraComponents.find(dxwrapper.substringAfter("dxvk-", "").ifEmpty { dxwrapper })
+        ?: return null
+    Timber.i("Installing arm64ec DXVK %s from %s", entry.id, entry.url)
+    return try {
+        val result = ManifestInstaller.installManifestEntry(
+            context = context,
+            entry = ManifestEntry(entry.id, entry.name, entry.url, entry.variant, entry.arch),
+            isDriver = false,
+            contentType = ExtraComponents.contentTypeOf(entry),
+        ) { progress ->
+            Timber.d("Downloading arm64ec DXVK ${entry.id}: ${(progress * 100).toInt()}%")
+        }
+        if (!result.success) {
+            Timber.e("arm64ec DXVK %s could not be installed: %s", entry.id, result.message)
+            return null
+        }
+        ContentsManager(context).getProfileByEntryName("dxvk-${entry.id}")
+    } catch (e: Exception) {
+        Timber.e(e, "arm64ec DXVK %s could not be installed", entry.id)
+        null
+    }
+}
+
 private suspend fun extractDXWrapperFiles(
     context: Context,
     firstTimeBoot: Boolean,
@@ -6483,10 +6523,15 @@ private suspend fun extractDXWrapperFiles(
             }
         }
         else -> {
-            val profile: ContentProfile? = contentsManager.getProfileByEntryName(dxwrapper)
+            var profile: ContentProfile? = contentsManager.getProfileByEntryName(dxwrapper)
             // This block handles dxvk-VERSION strings
             Timber.i("Extracting DXVK/D8VK DLLs for dxwrapper: $dxwrapper")
             restoreOriginalDllFiles(context, container, containerManager, imageFs, "d3d12.dll", "d3d12core.dll", "ddraw.dll")
+            if (profile == null) {
+                // An arm64ec DXVK lives in the extra component list rather than in the bundled
+                // assets; fetch and install it the first time it is used.
+                profile = installArm64ecDxWrapper(context, dxwrapper)
+            }
             if (profile != null) {
                 Timber.d("Applying user-defined DXVK content profile: " + dxwrapper)
                 contentsManager.applyContent(profile);
@@ -7278,13 +7323,20 @@ private fun applyGpuRepairs(
     xServerState: androidx.compose.runtime.MutableState<app.gamenative.ui.data.XServerState>,
     notify: (String) -> Unit,
 ) {
-    val repairs = GpuCompat.repairContainer(container, report)
+    val repairs = GpuCompat.repairContainer(container, report, MemoryBudget.vramBudgetMb(context))
     if (repairs.isEmpty()) return
 
     container.saveData()
+    // The launch reads the wrapper and the driver config from xServerState, not from the
+    // container, so a repaired dxwrapper would otherwise still extract the old DLLs.
+    val repairedWrapper = container.dxWrapper.orEmpty().let { wrapper ->
+        if (wrapper == "dxvk") "dxvk-" + DXVKHelper.parseConfig(container.dxWrapperConfig).get("version") else wrapper
+    }
     xServerState.value = xServerState.value.copy(
         graphicsDriver = container.graphicsDriver,
         graphicsDriverVersion = container.graphicsDriverVersion,
+        dxwrapper = repairedWrapper,
+        dxwrapperConfig = DXVKHelper.parseConfig(container.dxWrapperConfig),
     )
     Timber.tag("GpuCompat").i("Adjusted the container: %s", repairs)
     notify(context.getString(R.string.gpu_compat_repaired, repairs.joinToString(", ")))
