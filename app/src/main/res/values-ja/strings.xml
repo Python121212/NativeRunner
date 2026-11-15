@@ -3439,4 +3439,18 @@
     <string name="support_wait_stop">停止</string>
     <string name="support_reply_ready_tap">タップして読む。</string>
     <string name="support_notify_me">返信が届いたら通知する</string>
+
+    <!-- GPU / driver compatibility guard -->
+    <string name="gpu_compat_blocker_wrapper">この端末の GPU は %1$s です。Bionic 用グラフィックスドライバ「%2$s」は Adreno 専用のため動作せず、読み込むと GPU ドライバが停止して端末が再起動することがあります。起動を中止しました。コンテナの種類を glibc に変更し、グラフィックスドライバを Vortek にしてください。</string>
+    <string name="gpu_compat_blocker_driver">この端末の GPU は %1$s です。「%2$s」は Adreno 専用のグラフィックスドライバのため、読み込むと GPU ドライバが停止して端末が再起動することがあります。起動を中止しました。グラフィックスドライバを Vortek に変更してください。</string>
+    <string name="gpu_compat_repaired">この GPU に合わせて設定を自動修正しました: %1$s</string>
+    <string name="gpu_compat_settings_warning">この端末の GPU は %1$s です。Wrapper 系ドライバは Adreno 専用のため、Bionic コンテナでは描画できません。glibc コンテナ + Vortek を使用してください。</string>
+
+    <!-- Thermal guard -->
+    <string name="thermal_guard_hot">端末が熱くなっています。発熱を抑えるためフレームレートを %1$d FPS に制限しました。</string>
+    <string name="thermal_guard_critical">端末が非常に高温です。フレームレートを %1$d FPS に制限しました。冷却してください。</string>
+    <string name="thermal_guard_recovered">端末の温度が下がりました。フレームレート制限を解除しました。</string>
+    <string name="settings_performance_thermal_guard_title">自動で冷やす（熱対策）</string>
+    <string name="settings_performance_thermal_guard_subtitle">端末が熱くなったらフレームレートを制限し、冷えたら解除します。温かいときは 30 FPS、非常に高温のときは 20 FPS に制限します。</string>
+    <string name="gpu_compat_dialog_title">グラフィックスドライバが非対応です</string>
 </resources>

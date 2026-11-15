@@ -480,6 +480,28 @@ for (policy in cpuPolicies) {
 - ⏳ Additional device-specific drivers
 - ⏳ Mali GPU support (non-Samsung)
 
+### Thermal Guard (heat budget)
+
+`ThermalGuard` (`ThermalGuard.kt`) is the session owner of the heat budget. A container that
+renders through Wine, DXVK and zink keeps the GPU, the memory controller and two CPU clusters
+busy at once, and a fanless phone answers that with sustained clocks and a hot chassis.
+
+- Signals: `PowerManager.getThermalStatus`, `PowerManager.getThermalHeadroom(10)` (through
+  `ThermalHeadroom`, which rate-limits the platform call to one per ~1.1 s) and the battery
+  temperature from the sticky `ACTION_BATTERY_CHANGED` broadcast. The hottest signal wins, so a
+  single sensor that is late cannot hide a hot device.
+- Levels: `COOL → WARM → HOT → CRITICAL`. Stepping up is immediate; stepping down needs four
+  consecutive cool readings (20 s at the 5 s cycle), so the frame rate cannot flap.
+- Ceiling: `HOT` caps at 30 FPS, `CRITICAL` at 20 FPS, `COOL`/`WARM` hold no ceiling.
+- Application: `PowerManager.applyThermalCeiling()` pauses `AdaptiveFpsCapController` while a
+  ceiling is held (two owners of the frame limiter would fight), applies the cap to the same
+  engines the quick-menu limiter drives, and on release restores the user's cap and restarts the
+  adaptive cap when the profile still asks for it. The user's stored limiter value is never
+  changed, so nothing has to be undone after the session.
+- Transitions are logged to `thermal-<sessionStart>.jsonl` next to the FPS-cap session log, and a
+  toast tells the user why the frame rate dropped. The feature can be switched off in
+  Settings → Performance ("Cool down automatically", `PrefManager.thermalGuardEnabled`).
+
 ## Key Design Decisions
 
 ### Generic Abstraction

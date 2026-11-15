@@ -21,6 +21,7 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
+import android.widget.Toast
 import android.widget.LinearLayout
 import android.hardware.display.DisplayManager
 import android.hardware.input.InputManager
@@ -158,6 +159,7 @@ import app.gamenative.utils.StaleSessionProcesses
 import app.gamenative.utils.DebugRunParams
 import app.gamenative.utils.DebugRunParamsHolder
 import app.gamenative.utils.ExecutableSelectionUtils
+import app.gamenative.utils.GpuCompat
 import app.gamenative.utils.FexCodeCaches
 import app.gamenative.utils.FexCodeMaps
 import app.gamenative.utils.LsfgQuickMenuHelper
@@ -678,6 +680,8 @@ fun XServerScreen(
     var isKeyboardVisible = false
     // Snapshot of element positions before entering edit mode (for cancel behavior)
     var showPlayingBlockedDialog by rememberSaveable { mutableStateOf(false) }
+    // Set by the GPU guard on the setup thread when it refuses a driver the device cannot run.
+    var gpuBlockMessage by remember { mutableStateOf<String?>(null) }
     var playingBlockedRemoteName by rememberSaveable { mutableStateOf<String?>(null) }
     fun shouldShowMouseCursor(): Boolean {
         return !container.isDisableMouseInput &&
@@ -2441,6 +2445,9 @@ fun XServerScreen(
                     }
 
                     setupExecutor.submit {
+                        // Set when the GPU guard refuses the launch, so the catch below reports that
+                        // reason instead of the generic "Failed to setup wine".
+                        var blockedByGpuGuard: String? = null
                         try {
                             val containerManager = ContainerManager(context)
                             // Configure WinHandler with container's input API settings
@@ -2550,6 +2557,35 @@ fun XServerScreen(
                             extractArm64ecInputDLLs(context, container) // REQUIRED: Uses updated xinput1_3 main.c from x86_64 build, prevents crashes with 3+ players, avoids need for input shim dlls.
                             extractx86_64InputDlls(context, container)
 
+                            // Refuse a driver this GPU cannot run and fix what can be fixed. An
+                            // Adreno-only package loaded on Mali/Xclipse wedges the kernel driver:
+                            // the game never gets a Vulkan device and the device can reboot.
+                            val gpuReport = GpuCompat.evaluateContainer(context, container)
+                            val gpuRepairs = GpuCompat.repairContainer(container, gpuReport)
+                            if (gpuRepairs.isNotEmpty()) {
+                                container.saveData()
+                                // The launch reads the driver from xServerState, which was built
+                                // before the repair, so keep it in step or the old driver is
+                                // extracted anyway.
+                                xServerState.value = xServerState.value.copy(
+                                    graphicsDriver = container.graphicsDriver,
+                                    graphicsDriverVersion = container.graphicsDriverVersion,
+                                )
+                                Timber.tag("GpuCompat").i("Adjusted the container: %s", gpuRepairs)
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.gpu_compat_repaired, gpuRepairs.joinToString(", ")),
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                            }
+                            if (gpuReport.hasBlockingIssue) {
+                                val message = GpuCompat.blockingMessage(context, gpuReport, container.graphicsDriver)
+                                blockedByGpuGuard = message
+                                Timber.tag("GpuCompat").e("Launch blocked: %s", message)
+                                Handler(Looper.getMainLooper()).post { gpuBlockMessage = message }
+                                throw IllegalStateException(message)
+                            }
+
                             runBlocking {
                                 extractGraphicsDriverFiles(
                                     context,
@@ -2655,7 +2691,12 @@ fun XServerScreen(
                                 Timber.e(cleanupEx, "Error cleaning up environment after setup failure")
                             }
                             PluviaApp.xEnvironment = null
-                            if (!launchCancel.get()) onGameLaunchError?.invoke("Failed to setup wine: ${e.message}")
+                            val blockMessage = blockedByGpuGuard
+                            if (blockMessage != null) {
+                                onGameLaunchError?.invoke(blockMessage)
+                            } else if (!launchCancel.get()) {
+                                onGameLaunchError?.invoke("Failed to setup wine: ${e.message}")
+                            }
                         } finally {
                             setupExecutor.shutdown()
                         }
@@ -3392,6 +3433,20 @@ fun XServerScreen(
                 container.saveData()
                 PluviaApp.inputControlsView?.setShooterModeConfig(newConfig)
                 ui.showShooterModeDialog = false
+            },
+        )
+    }
+
+    val blockedGpuMessage = gpuBlockMessage
+    if (blockedGpuMessage != null) {
+        ThemedAlertDialog(
+            onDismissRequest = { gpuBlockMessage = null },
+            title = { Text(text = stringResource(R.string.gpu_compat_dialog_title)) },
+            text = { Text(text = blockedGpuMessage) },
+            confirmButton = {
+                TextButton(onClick = { gpuBlockMessage = null }) {
+                    Text(text = stringResource(R.string.ok))
+                }
             },
         )
     }
