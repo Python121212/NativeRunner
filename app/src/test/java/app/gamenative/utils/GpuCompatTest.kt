@@ -47,7 +47,10 @@ class GpuCompatTest {
 
     @Test
     fun hardwareFallbackDetectsMali() {
+        // Google's Tensor devices are all Mali, and the renderer string is empty until the probe
+        // has run - the Pixel 9a reports "tegu".
         assertEquals(GpuFamily.MALI, GpuCompat.familyOf(null, "tensor"))
+        assertEquals(GpuFamily.MALI, GpuCompat.familyOf(null, "tegu"))
         assertEquals(GpuFamily.MALI, GpuCompat.familyOf("", "1c500000.mali"))
         assertEquals(GpuFamily.UNKNOWN, GpuCompat.familyOf(null, "qcom"))
     }

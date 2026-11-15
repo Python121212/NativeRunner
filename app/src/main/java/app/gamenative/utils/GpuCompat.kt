@@ -106,6 +106,17 @@ object GpuCompat {
      */
     private val ADRENO_WRAPPER_ENV_KEYS = arrayOf("WRAPPER_MAX_IMAGE_COUNT", "MESA_VK_WSI_PRESENT_MODE")
 
+    /**
+     * Hardware names of Google's Tensor devices. Every Pixel since the 6 ships a Mali GPU, and the
+     * renderer string is empty until the GPU probe has run, so the name is all there is to go on at
+     * that point. Reporting [GpuFamily.UNKNOWN] instead would let an Adreno-only driver through on
+     * a device that cannot load it.
+     */
+    private val TENSOR_HARDWARE = arrayOf(
+        "tensor", "tegu", "tokay", "caiman", "komodo", "shiba", "husky", "akita",
+        "panther", "cheetah", "lynx", "oriole", "raven", "bluejay", "felix", "tangorpro",
+    )
+
     /** Above this share of physical RAM a driver allocation request is treated as over-commit. */
     private const val VRAM_BUDGET_RATIO = 0.40f
 
@@ -123,6 +134,8 @@ object GpuCompat {
         val h = hardware.orEmpty().lowercase(Locale.US)
         return when {
             h.contains("mali") -> GpuFamily.MALI
+            h.contains("tensor") -> GpuFamily.MALI
+            TENSOR_HARDWARE.any { it == h } -> GpuFamily.MALI
             else -> GpuFamily.UNKNOWN
         }
     }
