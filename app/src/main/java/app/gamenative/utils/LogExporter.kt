@@ -48,9 +48,16 @@ object LogExporter {
                 out.write("generated: ${Date()} \n\n")
 
                 writeSection(out, "build") {
+                    val identity = InstallIdentity.of(context)
                     it.write("version     : ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n")
+                    it.write("installed   : ${identity.versionName} (${identity.versionCode})\n")
                     it.write("package     : ${BuildConfig.APPLICATION_ID}\n")
+                    it.write("flavor      : ${if (BuildConfig.MODERN_ANDROID) "modern" else "legacy"}\n")
                     it.write("debug build : ${BuildConfig.DEBUG}\n")
+                    // Decides whether an update installs at all: same signer = update, different
+                    // signer = "app not installed".
+                    it.write("signer      : ${identity.signerSha256}\n")
+                    it.write("installer   : ${identity.installer}\n")
                 }
 
                 writeSection(out, "device") {
