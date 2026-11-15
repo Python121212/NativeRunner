@@ -21,7 +21,6 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
-import android.widget.Toast
 import android.widget.LinearLayout
 import android.hardware.display.DisplayManager
 import android.hardware.input.InputManager
@@ -680,8 +679,10 @@ fun XServerScreen(
     var isKeyboardVisible = false
     // Snapshot of element positions before entering edit mode (for cancel behavior)
     var showPlayingBlockedDialog by rememberSaveable { mutableStateOf(false) }
-    // Set by the GPU guard on the setup thread when it refuses a driver the device cannot run.
+    // Set by the GPU guard on the setup thread: either why the launch was refused, or what it
+    // had to change in the container to make the driver match this GPU.
     var gpuBlockMessage by remember { mutableStateOf<String?>(null) }
+    var gpuRepairMessage by remember { mutableStateOf<String?>(null) }
     var playingBlockedRemoteName by rememberSaveable { mutableStateOf<String?>(null) }
     fun shouldShowMouseCursor(): Boolean {
         return !container.isDisableMouseInput &&
@@ -2572,17 +2573,20 @@ fun XServerScreen(
                                     graphicsDriverVersion = container.graphicsDriverVersion,
                                 )
                                 Timber.tag("GpuCompat").i("Adjusted the container: %s", gpuRepairs)
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.gpu_compat_repaired, gpuRepairs.joinToString(", ")),
-                                    Toast.LENGTH_LONG,
-                                ).show()
+                                val notice = context.getString(
+                                    R.string.gpu_compat_repaired,
+                                    gpuRepairs.joinToString(", "),
+                                )
+                                Handler(Looper.getMainLooper()).post { gpuRepairMessage = notice }
                             }
                             if (gpuReport.hasBlockingIssue) {
                                 val message = GpuCompat.blockingMessage(context, gpuReport, container.graphicsDriver)
                                 blockedByGpuGuard = message
                                 Timber.tag("GpuCompat").e("Launch blocked: %s", message)
-                                Handler(Looper.getMainLooper()).post { gpuBlockMessage = message }
+                                Handler(Looper.getMainLooper()).post {
+                                    gpuRepairMessage = null
+                                    gpuBlockMessage = message
+                                }
                                 throw IllegalStateException(message)
                             }
 
@@ -3438,13 +3442,25 @@ fun XServerScreen(
     }
 
     val blockedGpuMessage = gpuBlockMessage
-    if (blockedGpuMessage != null) {
+    val repairedGpuMessage = gpuRepairMessage
+    if (blockedGpuMessage != null || repairedGpuMessage != null) {
+        val dismiss = {
+            gpuBlockMessage = null
+            gpuRepairMessage = null
+        }
         ThemedAlertDialog(
-            onDismissRequest = { gpuBlockMessage = null },
-            title = { Text(text = stringResource(R.string.gpu_compat_dialog_title)) },
-            text = { Text(text = blockedGpuMessage) },
+            onDismissRequest = dismiss,
+            title = {
+                Text(
+                    text = stringResource(
+                        if (blockedGpuMessage != null) R.string.gpu_compat_dialog_title
+                        else R.string.gpu_compat_repaired_title,
+                    ),
+                )
+            },
+            text = { Text(text = blockedGpuMessage ?: repairedGpuMessage.orEmpty()) },
             confirmButton = {
-                TextButton(onClick = { gpuBlockMessage = null }) {
+                TextButton(onClick = dismiss) {
                     Text(text = stringResource(R.string.ok))
                 }
             },

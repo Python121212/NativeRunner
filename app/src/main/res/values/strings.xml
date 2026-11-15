@@ -3491,4 +3491,5 @@
     <string name="settings_performance_thermal_guard_title">Cool down automatically</string>
     <string name="settings_performance_thermal_guard_subtitle">Caps the frame rate while the device is hot and releases it once it has cooled. The cap is 30 FPS when warm and 20 FPS when very hot.</string>
     <string name="gpu_compat_dialog_title">Graphics driver not supported</string>
+    <string name="gpu_compat_repaired_title">Graphics settings adjusted</string>
 </resources>

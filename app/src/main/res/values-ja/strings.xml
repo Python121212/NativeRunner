@@ -3453,4 +3453,5 @@
     <string name="settings_performance_thermal_guard_title">自動で冷やす（熱対策）</string>
     <string name="settings_performance_thermal_guard_subtitle">端末が熱くなったらフレームレートを制限し、冷えたら解除します。温かいときは 30 FPS、非常に高温のときは 20 FPS に制限します。</string>
     <string name="gpu_compat_dialog_title">グラフィックスドライバが非対応です</string>
+    <string name="gpu_compat_repaired_title">グラフィックス設定を修正しました</string>
 </resources>
