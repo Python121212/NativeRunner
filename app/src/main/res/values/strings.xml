@@ -3477,4 +3477,18 @@
     <string name="support_wait_stop">Stop</string>
     <string name="support_reply_ready_tap">Tap to read it.</string>
     <string name="support_notify_me">Notify me when the reply arrives</string>
+
+    <!-- GPU / driver compatibility guard (see app.gamenative.utils.GpuCompat) -->
+    <string name="gpu_compat_blocker_wrapper">This device has a %1$s GPU. The Bionic graphics driver \"%2$s\" is an Adreno-only package and cannot run here: loading it can hang the GPU driver and reboot the device, so the launch was stopped. Switch the container to the glibc variant and set the graphics driver to Vortek.</string>
+    <string name="gpu_compat_blocker_driver">This device has a %1$s GPU, and \"%2$s\" is an Adreno-only graphics driver. The launch was stopped because loading it can hang the GPU driver and reboot the device. Set the graphics driver to Vortek.</string>
+    <string name="gpu_compat_repaired">Adjusted the container for this GPU: %1$s</string>
+    <string name="gpu_compat_settings_warning">This device has a %1$s GPU. Wrapper drivers are Adreno-only packages, so a Bionic container cannot render here. Use a glibc container with the Vortek driver.</string>
+
+    <!-- Thermal guard (see app.gamenative.powercontrol.ThermalGuard) -->
+    <string name="thermal_guard_hot">The device is running warm. The frame rate was capped at %1$d FPS to shed heat.</string>
+    <string name="thermal_guard_critical">The device is very hot. The frame rate was capped at %1$d FPS. Let it cool down.</string>
+    <string name="thermal_guard_recovered">The device has cooled down. The frame rate cap was released.</string>
+    <string name="settings_performance_thermal_guard_title">Cool down automatically</string>
+    <string name="settings_performance_thermal_guard_subtitle">Caps the frame rate while the device is hot and releases it once it has cooled. The cap is 30 FPS when warm and 20 FPS when very hot.</string>
+    <string name="gpu_compat_dialog_title">Graphics driver not supported</string>
 </resources>
