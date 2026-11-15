@@ -72,6 +72,23 @@ class DeviceGateTest {
     }
 
     @Test
+    fun `pixel 9a is supported`() {
+        assertTrue(DeviceGate.isDeviceSupported("Pixel 9a"))
+        assertTrue(DeviceGate.isPixel9A("Pixel 9a"))
+        assertFalse(DeviceGate.isPixel9A("Pixel 8 Pro"))
+    }
+
+    @Test
+    fun `pixel 9a has no fan to control`() {
+        assertFalse(DeviceGate.hasFanControl("Pixel 9a"))
+    }
+
+    @Test
+    fun `retroid pocket 6 keeps fan control`() {
+        assertTrue(DeviceGate.hasFanControl("Retroid Pocket 6"))
+    }
+
+    @Test
     fun `empty string is not supported`() {
         assertFalse(DeviceGate.isDeviceSupported(""))
     }
