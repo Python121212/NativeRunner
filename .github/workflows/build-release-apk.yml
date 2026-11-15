@@ -153,8 +153,8 @@ jobs:
         run: |
           set -euo pipefail
           ./gradlew --no-daemon --stacktrace -Pkotlin.daemon.jvmargs=-Xmx4g \
-            :app:assembleLegacyReleaseSigned \
-            :app:assembleModernReleaseSigned 2>&1 | tee /tmp/gradle-build.log
+            :app:assembleLegacyRelease-signed \
+            :app:assembleModernRelease-signed 2>&1 | tee /tmp/gradle-build.log
           ./gradlew --stop || true
           find app/build/outputs/apk -name '*.apk' -printf '%s %p\n'
 
