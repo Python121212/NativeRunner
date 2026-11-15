@@ -42,6 +42,10 @@ on:
         description: "タスク毎の所要時間を計測（configuration cache を無効化して実行）"
         type: boolean
         default: false
+      cold_build:
+        description: "ベンチマーク用: --rerun-tasks でキャッシュを使わず全タスクを実行"
+        type: boolean
+        default: false
   push:
     branches: [ main ]
 
@@ -202,6 +206,7 @@ jobs:
           FLAVORS: ${{ inputs.flavors || 'legacy' }}
           FAST: ${{ inputs.fast || 'false' }}
           TIMINGS: ${{ inputs.timings || 'false' }}
+          COLD: ${{ inputs.cold_build || 'false' }}
         run: |
           set -euo pipefail
           TASKS=""
@@ -226,8 +231,14 @@ jobs:
             echo "timings mode: configuration cache disabled"
           fi
 
+          COLD_ARGS=""
+          if [ "${COLD}" = "true" ]; then
+            COLD_ARGS="--rerun-tasks"
+            echo "cold build: --rerun-tasks (build cache not used)"
+          fi
+
           ./gradlew --console=plain --stacktrace --build-cache \
-            $TIMER_ARGS $SPEED $TASKS 2>&1 | tee /tmp/gradle-build.log
+            $TIMER_ARGS $COLD_ARGS $SPEED $TASKS 2>&1 | tee /tmp/gradle-build.log
 
           find app/build/outputs/apk -name '*.apk' -printf '%s %p\n' || true
 
@@ -265,6 +276,12 @@ jobs:
           else
             echo "log push failed:"
             tail -5 /tmp/push.log
+            echo "::warning title=ci-logs-push::$(tail -4 /tmp/push.log | tr '\n' ' ' | sed -e 's/%/%25/g' | head -c 500)"
+          fi
+          if [ -f /tmp/gradle-build.log ] && grep -qP '^TIMER\t' /tmp/gradle-build.log; then
+            TOP="$(grep -P '^TIMER\t' /tmp/gradle-build.log | sort -t$'\t' -k2 -nr | head -15 \
+              | awk -F'\t' '{printf "%.1fs  %s%%0A", $2/1000, $3}')"
+            echo "::notice title=task-timings-${RUN_ID}::$TOP"
           fi
 
       - name: Verify APK signatures
