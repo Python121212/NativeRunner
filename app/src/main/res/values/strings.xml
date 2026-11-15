@@ -2184,6 +2184,8 @@
     <string name="manifest_downloading_item">Downloading %1$s...</string>
     <string name="manifest_download_failed">Download failed: %1$s</string>
     <string name="manifest_install_failed">Failed to install %1$s</string>
+    <string name="manifest_install_failed_reason">Failed to install %1$s (%2$s)</string>
+    <string name="manifest_download_not_an_archive">The server returned a web page, not the file</string>
     <string name="manifest_install_success">%1$s installed</string>
     <string name="manifest_content_untrusted">Content is not trusted and was not installed.</string>
     <string name="manifest_type_mismatch">Downloaded content does not match expected type.</string>
@@ -3551,5 +3553,6 @@
 
     <!-- arm64ec DXVK -->
     <string name="launch_risk_dxvk_arch">The DXVK build does not match this Wine (arm64ec)</string>
+    <string name="launch_risk_dxvk_missing">DXVK could not be installed — Direct3D 11 will fail</string>
     <string name="settings_debug_install_identity_title">Installed build</string>
 </resources>

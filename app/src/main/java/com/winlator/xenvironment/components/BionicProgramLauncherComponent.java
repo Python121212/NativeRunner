@@ -294,6 +294,12 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         if (true) {
             envVars.put("EVSHIM_SHM_ID", 1);
         }
+        // Where evshim keeps the gamepad shared memory. Without it the shim falls back to
+        // /data/data/app.gamenative/files, which the container's mount namespace cannot reach, so
+        // every process logged "failed to create/check dir ... Permission denied" and the pad
+        // shared nothing. getFilesDir() is the same directory WinHandler maps, spelled the way the
+        // guest sees it (/data/user/<id>/...).
+        envVars.put("EVSHIM_BASE_PATH", context.getFilesDir().getAbsolutePath());
         // Exactly one translator does the work per launch, so only that translator's
         // environment layer is applied:
         //   FEX  -> only reachable through an ARM64EC wine (libwow64fex.dll), single stage

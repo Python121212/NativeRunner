@@ -18,7 +18,17 @@ public class DXVKHelper {
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars) {
         ImageFs imageFs = ImageFs.find(context);
         envVars.put("DXVK_STATE_CACHE_PATH", "/data/data/app.gamenative/files/imagefs"+ImageFs.CACHE_PATH);
-        envVars.put("DXVK_LOG_LEVEL", "none");
+        // Silence used to be unconditional, which is why a DXVK that could not create its Vulkan
+        // device left nothing behind to read: the session died and the log only showed winevulkan
+        // being loaded and dropped. Warnings are cheap and stay; the debug setting asks for more.
+        if (!envVars.has("DXVK_LOG_LEVEL")) {
+            boolean verbose = false;
+            try {
+                verbose = app.gamenative.PrefManager.INSTANCE.getEnableWineDebug();
+            } catch (Throwable ignored) {
+            }
+            envVars.put("DXVK_LOG_LEVEL", verbose ? "info" : "warn");
+        }
 
         File rootDir = ImageFs.find(context).getRootDir();
         File dxvkConfigFile = new File(imageFs.config_path+"/dxvk.conf");

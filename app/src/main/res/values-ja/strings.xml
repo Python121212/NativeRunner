@@ -2171,6 +2171,8 @@
     <string name="manifest_downloading_item">%1$s をダウンロード中...</string>
     <string name="manifest_download_failed">ダウンロードに失敗しました: %1$s</string>
     <string name="manifest_install_failed">%1$sのインストールに失敗しました</string>
+    <string name="manifest_install_failed_reason">%1$sのインストールに失敗しました（%2$s）</string>
+    <string name="manifest_download_not_an_archive">サーバーがファイルではなく Web ページを返しました</string>
     <string name="manifest_install_success">%1$sがインストールされました</string>
     <string name="manifest_content_untrusted">コンテンツは信頼できないため、インストールされませんでした。</string>
     <string name="manifest_type_mismatch">ダウンロードされたコンテンツが予期されたタイプと一致しません。</string>
@@ -3513,5 +3515,6 @@
 
     <!-- arm64ec DXVK -->
     <string name="launch_risk_dxvk_arch">DXVK がこの Wine（arm64ec）と一致していません</string>
+    <string name="launch_risk_dxvk_missing">DXVK をインストールできませんでした（Direct3D 11 が動きません）</string>
     <string name="settings_debug_install_identity_title">インストール済みのビルド</string>
 </resources>

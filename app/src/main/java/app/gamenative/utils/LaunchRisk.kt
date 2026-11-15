@@ -29,6 +29,12 @@ enum class LaunchRiskCode(val rebootRisk: Boolean) {
      */
     DXVK_WRONG_ARCH(false),
 
+    /**
+     * A DXVK build the launch could not install: the prefix still holds whichever DLLs the last
+     * successful install left there, and the game stops at "a D3D11-compatible GPU is required".
+     */
+    DXVK_INSTALL_FAILED(false),
+
     /** The driver is asked for more memory than the device can hand out. */
     VRAM_OVER_COMMIT(false),
 
@@ -41,6 +47,12 @@ enum class LaunchRiskCode(val rebootRisk: Boolean) {
     /** The device is already hot: a session now makes a thermal shutdown or reboot likely. */
     DEVICE_HOT(true),
 }
+
+/**
+ * Container extra holding the DXVK id whose install failed, empty when the last launch installed it.
+ * Written by the launch, read by the guard, so the two cannot drift apart.
+ */
+const val DXVK_INSTALL_FAILED_EXTRA = "dxvkInstallFailed"
 
 /** What the pre-launch dialog was answered with. */
 enum class PreLaunchChoice {
@@ -80,7 +92,7 @@ object LaunchRiskAssessor {
         // A wrapper on an unknown GPU is not in `blockers`; still worth saying out loud.
         if (risks.none { it.code == LaunchRiskCode.GPU_DRIVER_MISMATCH } &&
             gpu.family.isKnownNonAdreno &&
-            GpuCompat.isAdrenoOnlyDriver(container.graphicsDriver)
+            GpuCompat.isAdrenoOnlyDriver(container.graphicsDriver, GpuCompat.wrapperVersionOf(container))
         ) {
             risks += LaunchRisk(
                 LaunchRiskCode.GPU_DRIVER_MISMATCH,
@@ -113,6 +125,16 @@ object LaunchRiskAssessor {
                     "DXVK '${version.ifEmpty { "default" }}' is not an arm64ec build",
                 )
             }
+        }
+
+        // The launch could not install the DXVK the container asks for: the prefix fell back to
+        // Wine's own DLLs, and a Direct3D 11 game stops at "a D3D11-compatible GPU is required".
+        val failedDxvk = container.getExtra(DXVK_INSTALL_FAILED_EXTRA)
+        if (failedDxvk.isNotEmpty()) {
+            risks += LaunchRisk(
+                LaunchRiskCode.DXVK_INSTALL_FAILED,
+                "DXVK '$failedDxvk' could not be installed; Direct3D 11 is back on Wine's builtin",
+            )
         }
 
         val availableMb = availableRamMb(context)
