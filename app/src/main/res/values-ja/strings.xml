@@ -3454,4 +3454,52 @@
     <string name="settings_performance_thermal_guard_subtitle">端末が熱くなったらフレームレートを制限し、冷えたら解除します。温かいときは 30 FPS、非常に高温のときは 20 FPS に制限します。</string>
     <string name="gpu_compat_dialog_title">グラフィックスドライバが非対応です</string>
     <string name="gpu_compat_repaired_title">グラフィックス設定を修正しました</string>
+
+    <!-- 起動前リスク確認（制限ではなく助言） -->
+    <string name="launch_risk_title_reboot">この組み合わせは端末が再起動する可能性があります</string>
+    <string name="launch_risk_title_crash">このセッションは途中で終了する可能性があります</string>
+    <string name="launch_risk_intro_reboot">グラフィックスドライバとこの GPU が一致していません。読み込むと GPU ドライバが停止し、端末ごと再起動することがあります。</string>
+    <string name="launch_risk_intro_crash">次の点でセッションが途中で終わる可能性があります:</string>
+    <string name="launch_risk_gpu_driver">GPU とグラフィックスドライバの不一致</string>
+    <string name="launch_risk_no_dxvk">DXVK が導入されていません</string>
+    <string name="launch_risk_vram">VRAM の要求が大きすぎます</string>
+    <string name="launch_risk_low_ram">空きメモリが少ない</string>
+    <string name="launch_risk_low_storage">空き容量が少ない</string>
+    <string name="launch_risk_device_hot">端末が高温です</string>
+    <string name="launch_risk_repair">修正して起動</string>
+    <string name="launch_risk_proceed">このまま起動</string>
+    <string name="launch_risk_aborted">起動前の確認で中止しました</string>
+
+    <!-- ログ出力 -->
+    <string name="log_export_share_title">ログを共有</string>
+    <string name="log_export_share_text">GameNative のログ一式</string>
+    <string name="log_export_failed">ログの出力に失敗しました</string>
+    <string name="settings_debug_export_logs_title">ログを出力（共有）</string>
+    <string name="settings_debug_export_logs_subtitle">永続ログ・クラッシュレポート・Wineログ・終了理由・logcat を1つのファイルにまとめます</string>
+    <string name="settings_debug_export_logs_running">出力中…</string>
+    <string name="settings_debug_export_logs_last">前回: %1$s</string>
+    <string name="settings_debug_previous_session_title">前回のセッションは異常終了しました</string>
+    <string name="settings_debug_previous_session_reboot">端末の再起動を検出しました。タップでログを出力します。</string>
+    <string name="settings_debug_previous_session_killed">アプリが強制終了されました。タップでログを出力します。</string>
+
+    <!-- ゲームファイル容量の削減 -->
+    <string name="storage_optimize_action">容量を削減</string>
+    <string name="storage_optimize_confirm_title">ゲームファイルの容量を削減</string>
+    <string name="storage_optimize_confirm_body">ジャンク（ダンプ・一時ファイル・古いログ）の削除、重複ファイルのハードリンク化、ゼロ埋め領域の解放を行います。ファイルの中身は変わらないためゲームはそのまま起動できます。ゲームを起動していない状態で実行してください。</string>
+    <string name="storage_optimize_start">実行</string>
+    <string name="storage_optimize_running_title">容量を削減しています</string>
+    <string name="storage_optimize_phase_scan">ファイルを数えています</string>
+    <string name="storage_optimize_phase_junk">ジャンクを削除しています</string>
+    <string name="storage_optimize_phase_dedupe">重複ファイルを統合しています</string>
+    <string name="storage_optimize_phase_holes">ゼロ領域を解放しています</string>
+    <string name="storage_optimize_progress_bytes">確保: %1$s</string>
+    <string name="storage_optimize_stop">停止</string>
+    <string name="storage_optimize_done_title">完了</string>
+    <string name="storage_optimize_failed">実行できませんでした。</string>
+    <string name="storage_optimize_result_measured">空き容量 +%1$s（実測）</string>
+    <string name="storage_optimize_result_detail">ジャンク %1$s / 重複 %2$s / ゼロ領域 %3$s</string>
+    <string name="storage_optimize_result_counts">%1$d ファイル走査、%2$d 件削除、%3$d 件統合、%4$d 秒</string>
+    <string name="storage_optimize_unsupported">この端末では未対応: %1$s</string>
+    <string name="storage_optimize_nothing_to_do">削減できるものは見つかりませんでした。</string>
+    <string name="storage_optimize_running_game">ゲームを終了してから実行してください。</string>
 </resources>

@@ -1,6 +1,7 @@
 package app.gamenative
 
 import android.content.Context
+import app.gamenative.utils.PersistentLog
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -92,6 +93,13 @@ class CrashHandler(
     override fun uncaughtException(thread: Thread, throwable: Throwable) {
         PrefManager.recentlyCrashed = true
 
+        // Flush the in-process trail first: the crash file lives on external storage, which can
+        // be full or unmounted, and the persistent log is fsynced on ERROR.
+        try {
+            PersistentLog.write(android.util.Log.ERROR, "CrashHandler", "uncaught: ${throwable.javaClass.name}: ${throwable.message}")
+            PersistentLog.write(android.util.Log.ERROR, "CrashHandler", android.util.Log.getStackTraceString(throwable))
+        } catch (_: Throwable) {
+        }
         saveCrashToFile(throwable)
         defaultHandler?.uncaughtException(thread, throwable)
     }

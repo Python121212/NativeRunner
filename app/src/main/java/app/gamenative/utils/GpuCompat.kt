@@ -333,6 +333,21 @@ object GpuCompat {
     fun needsSave(changes: List<String>): Boolean = changes.isNotEmpty()
 
     /**
+     * True when [repairContainer] would actually change this container, so the pre-launch dialog
+     * only offers the repair when there is one.
+     */
+    fun canRepair(container: Container, report: GpuCompatReport): Boolean {
+        val bionic = container.containerVariant.orEmpty().equals(Container.BIONIC, ignoreCase = true)
+        val wouldSwitchDriver = report.family.isKnownNonAdreno &&
+            !bionic &&
+            isAdrenoOnlyDriver(container.graphicsDriver) &&
+            !isBionicWrapperDriver(container.graphicsDriver) &&
+            container.graphicsDriver != UNIVERSAL_DRIVER
+        val wouldStripEnv = !report.family.isAdreno && turnipEnvKeys(container.envVars).isNotEmpty()
+        return wouldSwitchDriver || wouldStripEnv
+    }
+
+    /**
      * User-facing explanation of the first blocking issue, or an empty string when the launch is
      * allowed. Kept next to the rules so the advice and the check cannot drift apart.
      */

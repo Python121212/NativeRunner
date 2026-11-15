@@ -31,6 +31,10 @@ import app.gamenative.ui.component.settings.SettingsMenuLink
 import app.gamenative.ui.component.settings.SettingsSwitch
 import app.gamenative.PrefManager
 import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.utils.LogExporter
+import app.gamenative.utils.PersistentLog
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import app.gamenative.ui.theme.settingsTileColorsAlt
 import com.winlator.PrefManager as WinlatorPrefManager
 import kotlinx.coroutines.Dispatchers
@@ -141,6 +145,25 @@ fun SettingsGroupDebug() {
         )
     }
 
+    /* Whole-bundle log export: persistent log, crashes, wine log, exit records, logcat */
+    var exporting by remember { mutableStateOf(false) }
+    var lastExportName by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    fun exportLogs() {
+        if (exporting) return
+        exporting = true
+        scope.launch {
+            val file = LogExporter.export(context)
+            exporting = false
+            if (file == null) {
+                SnackbarManager.show(context.getString(R.string.log_export_failed))
+            } else {
+                lastExportName = file.name
+                LogExporter.share(context, file)
+            }
+        }
+    }
+
     /* Wine Debug Log export setup */
     var showWineLogDialog by rememberSaveable { mutableStateOf(false) }
     var latestWineLogFile: File? by rememberSaveable { mutableStateOf(null) }
@@ -178,6 +201,43 @@ fun SettingsGroupDebug() {
     }
 
     SettingsGroup() {
+        val previousSession = PersistentLog.lastSession
+        val previousEnd = previousSession?.end ?: PersistentLog.PreviousEnd.NONE
+        if (previousEnd == PersistentLog.PreviousEnd.REBOOT || previousEnd == PersistentLog.PreviousEnd.KILLED) {
+            SettingsMenuLink(
+                colors = settingsTileColorsDebug(),
+                title = { Text(text = stringResource(R.string.settings_debug_previous_session_title)) },
+                subtitle = {
+                    Text(
+                        text = stringResource(
+                            if (previousEnd == PersistentLog.PreviousEnd.REBOOT) {
+                                R.string.settings_debug_previous_session_reboot
+                            } else {
+                                R.string.settings_debug_previous_session_killed
+                            },
+                        ),
+                    )
+                },
+                onClick = { exportLogs() },
+            )
+        }
+        SettingsMenuLink(
+            colors = settingsTileColors(),
+            title = { Text(text = stringResource(R.string.settings_debug_export_logs_title)) },
+            subtitle = {
+                Text(
+                    text = when {
+                        exporting -> stringResource(R.string.settings_debug_export_logs_running)
+                        lastExportName != null -> stringResource(
+                            R.string.settings_debug_export_logs_last,
+                            lastExportName.orEmpty(),
+                        )
+                        else -> stringResource(R.string.settings_debug_export_logs_subtitle)
+                    },
+                )
+            },
+            onClick = { exportLogs() },
+        )
         SettingsMenuLink(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.settings_save_logcat_title)) },

@@ -158,7 +158,12 @@ import app.gamenative.utils.StaleSessionProcesses
 import app.gamenative.utils.DebugRunParams
 import app.gamenative.utils.DebugRunParamsHolder
 import app.gamenative.utils.ExecutableSelectionUtils
+import app.gamenative.ui.component.dialog.PreLaunchRiskDialog
 import app.gamenative.utils.GpuCompat
+import app.gamenative.utils.GpuCompatReport
+import app.gamenative.utils.LaunchRisk
+import app.gamenative.utils.LaunchRiskAssessor
+import app.gamenative.utils.PreLaunchChoice
 import app.gamenative.utils.FexCodeCaches
 import app.gamenative.utils.FexCodeMaps
 import app.gamenative.utils.LsfgQuickMenuHelper
@@ -288,6 +293,8 @@ import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import java.util.Arrays
 import java.util.Locale
 import kotlin.math.ceil
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import java.util.concurrent.atomic.AtomicInteger
@@ -679,10 +686,10 @@ fun XServerScreen(
     var isKeyboardVisible = false
     // Snapshot of element positions before entering edit mode (for cancel behavior)
     var showPlayingBlockedDialog by rememberSaveable { mutableStateOf(false) }
-    // Set by the GPU guard on the setup thread: either why the launch was refused, or what it
-    // had to change in the container to make the driver match this GPU.
-    var gpuBlockMessage by remember { mutableStateOf<String?>(null) }
+    // Set by the setup thread: what it had to change in the container to match this GPU, and the
+    // risks it wants confirmed before the session starts. Nothing here forbids a launch.
     var gpuRepairMessage by remember { mutableStateOf<String?>(null) }
+    var preLaunchPrompt by remember { mutableStateOf<PreLaunchPrompt?>(null) }
     var playingBlockedRemoteName by rememberSaveable { mutableStateOf<String?>(null) }
     fun shouldShowMouseCursor(): Boolean {
         return !container.isDisableMouseInput &&
@@ -2558,36 +2565,26 @@ fun XServerScreen(
                             extractArm64ecInputDLLs(context, container) // REQUIRED: Uses updated xinput1_3 main.c from x86_64 build, prevents crashes with 3+ players, avoids need for input shim dlls.
                             extractx86_64InputDlls(context, container)
 
-                            // Refuse a driver this GPU cannot run and fix what can be fixed. An
-                            // Adreno-only package loaded on Mali/Xclipse wedges the kernel driver:
-                            // the game never gets a Vulkan device and the device can reboot.
+                            // This GPU may not be able to run the chosen driver, the device may be
+                            // short of memory, or it may already be too hot. Nothing is forbidden -
+                            // the user picks - but a session that ends in a reboot or a kill is
+                            // worth one confirmation first.
                             val gpuReport = GpuCompat.evaluateContainer(context, container)
-                            val gpuRepairs = GpuCompat.repairContainer(container, gpuReport)
-                            if (gpuRepairs.isNotEmpty()) {
-                                container.saveData()
-                                // The launch reads the driver from xServerState, which was built
-                                // before the repair, so keep it in step or the old driver is
-                                // extracted anyway.
-                                xServerState.value = xServerState.value.copy(
-                                    graphicsDriver = container.graphicsDriver,
-                                    graphicsDriverVersion = container.graphicsDriverVersion,
-                                )
-                                Timber.tag("GpuCompat").i("Adjusted the container: %s", gpuRepairs)
-                                val notice = context.getString(
-                                    R.string.gpu_compat_repaired,
-                                    gpuRepairs.joinToString(", "),
-                                )
-                                Handler(Looper.getMainLooper()).post { gpuRepairMessage = notice }
-                            }
-                            if (gpuReport.hasBlockingIssue) {
-                                val message = GpuCompat.blockingMessage(context, gpuReport, container.graphicsDriver)
-                                blockedByGpuGuard = message
-                                Timber.tag("GpuCompat").e("Launch blocked: %s", message)
-                                Handler(Looper.getMainLooper()).post {
-                                    gpuRepairMessage = null
-                                    gpuBlockMessage = message
+                            val risks = LaunchRiskAssessor.assess(context, container, gpuReport)
+                            val canRepair = GpuCompat.canRepair(container, gpuReport)
+                            if (risks.isNotEmpty()) {
+                                val choice = promptForLaunchRisks(risks, canRepair) {
+                                    Handler(Looper.getMainLooper()).post { preLaunchPrompt = it }
                                 }
-                                throw IllegalStateException(message)
+                                if (choice == PreLaunchChoice.ABORT) {
+                                    blockedByGpuGuard = context.getString(R.string.launch_risk_aborted)
+                                    throw IllegalStateException("Launch cancelled at the pre-launch prompt")
+                                }
+                                if (choice == PreLaunchChoice.REPAIR) {
+                                    applyGpuRepairs(context, container, gpuReport, xServerState) { notice ->
+                                        Handler(Looper.getMainLooper()).post { gpuRepairMessage = notice }
+                                    }
+                                }
                             }
 
                             runBlocking {
@@ -3441,26 +3438,26 @@ fun XServerScreen(
         )
     }
 
-    val blockedGpuMessage = gpuBlockMessage
-    val repairedGpuMessage = gpuRepairMessage
-    if (blockedGpuMessage != null || repairedGpuMessage != null) {
-        val dismiss = {
-            gpuBlockMessage = null
-            gpuRepairMessage = null
-        }
-        ThemedAlertDialog(
-            onDismissRequest = dismiss,
-            title = {
-                Text(
-                    text = stringResource(
-                        if (blockedGpuMessage != null) R.string.gpu_compat_dialog_title
-                        else R.string.gpu_compat_repaired_title,
-                    ),
-                )
+    val prompt = preLaunchPrompt
+    if (prompt != null) {
+        PreLaunchRiskDialog(
+            risks = prompt.risks,
+            canRepair = prompt.canRepair,
+            onChoice = { choice ->
+                preLaunchPrompt = null
+                prompt.answer.complete(choice)
             },
-            text = { Text(text = blockedGpuMessage ?: repairedGpuMessage.orEmpty()) },
+        )
+    }
+
+    val repairedGpuMessage = gpuRepairMessage
+    if (repairedGpuMessage != null) {
+        ThemedAlertDialog(
+            onDismissRequest = { gpuRepairMessage = null },
+            title = { Text(text = stringResource(R.string.gpu_compat_repaired_title)) },
+            text = { Text(text = repairedGpuMessage) },
             confirmButton = {
-                TextButton(onClick = dismiss) {
+                TextButton(onClick = { gpuRepairMessage = null }) {
                     Text(text = stringResource(R.string.ok))
                 }
             },
@@ -7194,4 +7191,57 @@ private fun setImagefsContainerVariant(context: Context, container: Container) {
     val imageFs = ImageFs.find(context)
     val containerVariant = container.containerVariant
     imageFs.createVariantFile(containerVariant)
+}
+
+/** A pending pre-launch confirmation: the risks found and where the answer goes. */
+private data class PreLaunchPrompt(
+    val risks: List<LaunchRisk>,
+    val canRepair: Boolean,
+    val answer: CompletableFuture<PreLaunchChoice>,
+)
+
+private const val PRE_LAUNCH_PROMPT_TIMEOUT_SECONDS = 180L
+
+/**
+ * Shows the pre-launch dialog on the main thread and waits for the answer on the setup thread.
+ * No answer (the screen went away) is treated as a cancellation rather than a launch.
+ */
+private fun promptForLaunchRisks(
+    risks: List<LaunchRisk>,
+    canRepair: Boolean,
+    show: (PreLaunchPrompt?) -> Unit,
+): PreLaunchChoice {
+    val answer = CompletableFuture<PreLaunchChoice>()
+    show(PreLaunchPrompt(risks, canRepair, answer))
+    return try {
+        answer.get(PRE_LAUNCH_PROMPT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    } catch (e: Exception) {
+        Timber.tag("LaunchRisk").w(e, "No answer to the pre-launch prompt")
+        PreLaunchChoice.ABORT
+    } finally {
+        show(null)
+    }
+}
+
+/**
+ * Applies the driver repairs the user accepted and keeps [xServerState] in step: the launch reads
+ * the driver from there, so a repaired container would otherwise still extract the old driver.
+ */
+private fun applyGpuRepairs(
+    context: Context,
+    container: Container,
+    report: GpuCompatReport,
+    xServerState: androidx.compose.runtime.MutableState<app.gamenative.ui.data.XServerState>,
+    notify: (String) -> Unit,
+) {
+    val repairs = GpuCompat.repairContainer(container, report)
+    if (repairs.isEmpty()) return
+
+    container.saveData()
+    xServerState.value = xServerState.value.copy(
+        graphicsDriver = container.graphicsDriver,
+        graphicsDriverVersion = container.graphicsDriverVersion,
+    )
+    Timber.tag("GpuCompat").i("Adjusted the container: %s", repairs)
+    notify(context.getString(R.string.gpu_compat_repaired, repairs.joinToString(", ")))
 }

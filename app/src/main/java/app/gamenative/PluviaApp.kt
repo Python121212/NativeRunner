@@ -26,6 +26,7 @@ import app.gamenative.ui.screen.xserver.RadialMenuCoordinator
 import app.gamenative.utils.AppExitRecorder
 import app.gamenative.utils.ContainerMigrator
 import app.gamenative.utils.DebugReportUtils
+import app.gamenative.utils.PersistentLog
 import app.gamenative.utils.DeviceInfo
 import app.gamenative.utils.IntentLaunchManager
 import app.gamenative.utils.PlayIntegrity
@@ -87,6 +88,11 @@ class PluviaApp : SplitCompatApplication() {
         } else {
             Timber.plant(ReleaseTree())
         }
+
+        // Lines are written and flushed as they happen: this file is the only trail that survives
+        // a native crash, a low-memory kill or a device reboot. Installed before anything else so
+        // the startup path is covered too.
+        PersistentLog.install(this)
 
         NetworkMonitor.init(this)
 

@@ -76,6 +76,7 @@ import app.gamenative.data.GameSource
 import app.gamenative.ui.screen.library.GameMigrationDialog
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.ui.component.dialog.StorageOptimizerLauncher
 import app.gamenative.utils.ContainerStorageManager
 import app.gamenative.utils.StorageUtils
 import kotlinx.coroutines.CancellationException
@@ -489,7 +490,10 @@ fun ContainerStorageManagerContent(
 
         Spacer(modifier = Modifier.height(10.dp))
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Shrinks what the game files actually occupy (junk, duplicate files, zero padding).
+        StorageOptimizerLauncher()
 
         when {
             state.isLoading && state.entries.isEmpty() -> {
