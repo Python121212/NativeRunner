@@ -92,8 +92,19 @@ object GpuCompat {
 
     private const val BIONIC_WRAPPER_PREFIX = "wrapper"
 
+    /** The wrapper version that means "the device's own Vulkan driver", not a shipped package. */
+    private const val SYSTEM_WRAPPER_VERSION = "system"
+
     /** Env vars that only do something under the Turnip (freedreno) driver. */
     private val TURNIP_ONLY_ENV_KEYS = arrayOf("TU_DEBUG", "TU_OVERRIDE_HEAP_SIZE")
+
+    /**
+     * Env vars an AdrenoTools wrapper recipe leaves behind. On every other GPU they only get in the
+     * way: `WRAPPER_MAX_IMAGE_COUNT=0` makes the wrapper rebuild each image every frame, and
+     * `MESA_VK_WSI_PRESENT_MODE` pins a present mode the launch already derives from the container's
+     * `presentMode` setting, so a stale copy overrides the user's choice.
+     */
+    private val ADRENO_WRAPPER_ENV_KEYS = arrayOf("WRAPPER_MAX_IMAGE_COUNT", "MESA_VK_WSI_PRESENT_MODE")
 
     /** Above this share of physical RAM a driver allocation request is treated as over-commit. */
     private const val VRAM_BUDGET_RATIO = 0.40f
@@ -116,17 +127,30 @@ object GpuCompat {
         }
     }
 
-    /** True for a driver id whose binaries are built only for Adreno hardware. */
-    fun isAdrenoOnlyDriver(graphicsDriver: String?): Boolean {
+    /**
+     * True for a driver id whose binaries are built only for Adreno hardware.
+     *
+     * A Bionic `Wrapper` is not automatically one of those: with the built-in System driver
+     * ([SYSTEM_WRAPPER_VERSION], the default) it is the shared wrapper on top of whatever Vulkan
+     * driver the device ships, which loads on Mali and Xclipse just as well. Only a named package
+     * version is an AdrenoTools build, and only that one is Adreno-only.
+     */
+    fun isAdrenoOnlyDriver(graphicsDriver: String?, wrapperVersion: String? = null): Boolean {
         val driver = graphicsDriver.orEmpty().trim().lowercase(Locale.US)
         if (driver.isEmpty()) return false
-        if (driver.startsWith(BIONIC_WRAPPER_PREFIX)) return true
+        if (driver.startsWith(BIONIC_WRAPPER_PREFIX)) {
+            return !wrapperVersion.orEmpty().trim().equals(SYSTEM_WRAPPER_VERSION, ignoreCase = true)
+        }
         return ADRENO_ONLY_DRIVER_IDS.any { it == driver }
     }
 
     /** True for the Bionic `wrapper*` drivers, which are shipped as AdrenoTools packages. */
     fun isBionicWrapperDriver(graphicsDriver: String?): Boolean =
         graphicsDriver.orEmpty().trim().lowercase(Locale.US).startsWith(BIONIC_WRAPPER_PREFIX)
+
+    /** The wrapper version in the container's driver config, or null when it is not set. */
+    fun wrapperVersionOf(container: Container): String? =
+        KeyValueSet(container.graphicsDriverConfig).get("version").takeIf { it.isNotBlank() }
 
     /**
      * Issues for one container configuration. Pure: the caller supplies everything the GPU probe
@@ -140,12 +164,13 @@ object GpuCompat {
         envVarsText: String?,
         maxDeviceMemoryMb: Int,
         totalRamMb: Int,
+        graphicsDriverVersion: String? = null,
     ): List<GpuCompatIssue> {
         val issues = mutableListOf<GpuCompatIssue>()
         val driver = graphicsDriver.orEmpty().trim()
         val bionic = containerVariant.orEmpty().equals(Container.BIONIC, ignoreCase = true)
 
-        if (family.isKnownNonAdreno && isAdrenoOnlyDriver(driver)) {
+        if (family.isKnownNonAdreno && isAdrenoOnlyDriver(driver, graphicsDriverVersion)) {
             if (isBionicWrapperDriver(driver)) {
                 issues += GpuCompatIssue(
                     GpuIssueCode.BIONIC_WRAPPER_ON_NON_ADRENO,
@@ -229,6 +254,54 @@ object GpuCompat {
         return if (removed.isEmpty()) text to emptyList() else env.toString() to removed
     }
 
+    /**
+     * [envVarsText] without the knobs an AdrenoTools wrapper recipe leaves behind. Only the values
+     * that only make sense on Adreno are dropped; everything the user may have tuned by hand stays.
+     */
+    fun sanitizedWrapperEnvVars(envVarsText: String?): Pair<String, List<String>> {
+        val text = envVarsText.orEmpty()
+        if (text.isBlank()) return text to emptyList()
+
+        val env = EnvVars(text)
+        val removed = mutableListOf<String>()
+        for (key in ADRENO_WRAPPER_ENV_KEYS) {
+            if (!env.has(key)) continue
+            // An image count of 0 means "recreate every image, every frame", which is the wrong
+            // default anywhere else; any other value is a deliberate choice and is kept.
+            if (key == "WRAPPER_MAX_IMAGE_COUNT" && env.get(key) != "0") continue
+            env.remove(key)
+            removed += key
+        }
+        return if (removed.isEmpty()) text to emptyList() else env.toString() to removed
+    }
+
+    /**
+     * Drops the env vars this device cannot use, straight into the container. Called before a launch
+     * so a recipe written for another GPU cannot quietly break presentation here.
+     *
+     * @return the keys that were removed, empty when the container was already clean
+     */
+    fun sanitizeEnvForDevice(container: Container, family: GpuFamily): List<String> {
+        if (family.isAdreno) return emptyList()
+
+        val changed = mutableListOf<String>()
+        val (withoutTurnip, turnipRemoved) = sanitizedEnvVars(container.envVars, family)
+        val (withoutWrapper, wrapperRemoved) = sanitizedWrapperEnvVars(withoutTurnip)
+        changed += turnipRemoved
+        changed += wrapperRemoved
+        if (changed.isEmpty()) return emptyList()
+
+        container.envVars = withoutWrapper
+        runCatching { container.saveData() }
+            .onFailure { Timber.tag(TAG).w(it, "Could not save the sanitized env vars") }
+        Timber.tag(TAG).i(
+            "Dropped env vars %s cannot use: %s",
+            family.displayName(),
+            changed.joinToString(", "),
+        )
+        return changed
+    }
+
     /** GL renderer of the device, or null when the probe has nothing to say. */
     fun rendererOf(context: Context?): String? {
         if (context == null) return null
@@ -266,6 +339,7 @@ object GpuCompat {
                 envVarsText = container.envVars,
                 maxDeviceMemoryMb = maxDeviceMemoryMb,
                 totalRamMb = totalRamMb(context),
+                graphicsDriverVersion = driverConfig.get("version"),
             ),
         )
 
@@ -307,7 +381,7 @@ object GpuCompat {
         val bionic = container.containerVariant.orEmpty().equals(Container.BIONIC, ignoreCase = true)
         if (report.family.isKnownNonAdreno &&
             !bionic &&
-            isAdrenoOnlyDriver(container.graphicsDriver) &&
+            isAdrenoOnlyDriver(container.graphicsDriver, wrapperVersionOf(container)) &&
             !isBionicWrapperDriver(container.graphicsDriver) &&
             container.graphicsDriver != UNIVERSAL_DRIVER
         ) {
@@ -386,10 +460,12 @@ object GpuCompat {
         val bionic = container.containerVariant.orEmpty().equals(Container.BIONIC, ignoreCase = true)
         val wouldSwitchDriver = report.family.isKnownNonAdreno &&
             !bionic &&
-            isAdrenoOnlyDriver(container.graphicsDriver) &&
+            isAdrenoOnlyDriver(container.graphicsDriver, wrapperVersionOf(container)) &&
             !isBionicWrapperDriver(container.graphicsDriver) &&
             container.graphicsDriver != UNIVERSAL_DRIVER
-        val wouldStripEnv = !report.family.isAdreno && turnipEnvKeys(container.envVars).isNotEmpty()
+        val wouldStripEnv = !report.family.isAdreno &&
+            (turnipEnvKeys(container.envVars).isNotEmpty() ||
+                sanitizedWrapperEnvVars(container.envVars).second.isNotEmpty())
         val configuredVram = KeyValueSet(container.graphicsDriverConfig)
             .get("maxDeviceMemory", "0").toIntOrNull() ?: 0
         val wouldClampVram = memoryBudgetMb > 0 && configuredVram > memoryBudgetMb

@@ -22,6 +22,7 @@ class GpuCompatTest {
         envVars: String? = null,
         maxDeviceMemoryMb: Int = 0,
         totalRamMb: Int = 8_000,
+        driverVersion: String? = null,
     ) = GpuCompat.evaluate(
         family = family,
         containerVariant = variant,
@@ -30,6 +31,7 @@ class GpuCompatTest {
         envVarsText = envVars,
         maxDeviceMemoryMb = maxDeviceMemoryMb,
         totalRamMb = totalRamMb,
+        graphicsDriverVersion = driverVersion,
     )
 
     @Test
@@ -65,6 +67,31 @@ class GpuCompatTest {
         assertEquals(GpuFamily.MALI, GpuCompat.familyOf("Mali-G715"))
         assertTrue(GpuCompat.isBionicWrapperDriver("wrapper-v2"))
         assertFalse(GpuCompat.isBionicWrapperDriver("vortek"))
+    }
+
+    @Test
+    fun systemWrapperIsNotAnAdrenoToolsPackage() {
+        // The Bionic default is "Wrapper" on the built-in System driver: the shared wrapper over
+        // the device's own Vulkan driver, which loads on Mali as well. Flagging it taught users to
+        // ignore the warning that matters.
+        assertFalse(GpuCompat.isAdrenoOnlyDriver("Wrapper", "System"))
+        assertTrue(GpuCompat.isAdrenoOnlyDriver("Wrapper", "vulkan.adreno.so-819.2"))
+        assertTrue(GpuCompat.isAdrenoOnlyDriver("Wrapper"))
+
+        val issues = evaluate(GpuFamily.MALI, driver = "Wrapper", variant = Container.BIONIC, driverVersion = "System")
+        assertFalse(issues.any { it.code == GpuIssueCode.BIONIC_WRAPPER_ON_NON_ADRENO })
+    }
+
+    @Test
+    fun adrenoWrapperEnvVarsAreDroppedOnMali() {
+        val env = "WRAPPER_MAX_IMAGE_COUNT=0 MESA_VK_WSI_PRESENT_MODE=mailbox WINEESYNC=1"
+        val (sanitized, removed) = GpuCompat.sanitizedWrapperEnvVars(env)
+        assertEquals(setOf("WRAPPER_MAX_IMAGE_COUNT", "MESA_VK_WSI_PRESENT_MODE"), removed.toSet())
+        assertTrue(sanitized.contains("WINEESYNC=1"))
+        // A deliberate image count is a choice, not a leftover.
+        val (kept, none) = GpuCompat.sanitizedWrapperEnvVars("WRAPPER_MAX_IMAGE_COUNT=8")
+        assertTrue(none.isEmpty())
+        assertEquals("WRAPPER_MAX_IMAGE_COUNT=8", kept)
     }
 
     @Test

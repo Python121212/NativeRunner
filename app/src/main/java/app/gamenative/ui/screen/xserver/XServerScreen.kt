@@ -167,6 +167,7 @@ import app.gamenative.utils.MemoryBudget
 import app.gamenative.utils.ExtraComponents
 import app.gamenative.utils.ManifestEntry
 import app.gamenative.utils.LaunchRisk
+import app.gamenative.utils.DXVK_INSTALL_FAILED_EXTRA
 import app.gamenative.utils.SessionRisk
 import app.gamenative.utils.LaunchRiskAssessor
 import app.gamenative.utils.PreLaunchChoice
@@ -2570,6 +2571,12 @@ fun XServerScreen(
                             }
                             extractArm64ecInputDLLs(context, container) // REQUIRED: Uses updated xinput1_3 main.c from x86_64 build, prevents crashes with 3+ players, avoids need for input shim dlls.
                             extractx86_64InputDlls(context, container)
+
+                            // Recipes written for another GPU leave env vars behind that break the
+                            // display here (an image count of 0, a pinned present mode). They are
+                            // dropped before anything reads the container, so the launch and the
+                            // pre-launch dialog both see the cleaned values.
+                            GpuCompat.sanitizeEnvForDevice(container, GpuCompat.detectFamily(context))
 
                             // This GPU may not be able to run the chosen driver, the device may be
                             // short of memory, or it may already be too hot. Nothing is forbidden -
@@ -6393,12 +6400,12 @@ private suspend fun extractDXWrapperComponent(
     componentId: String,
     windowsDir: File,
     onExtractFileListener: OnExtractFileListener?
-) {
+): Boolean {
     val componentFile = DXWrapperDownloader.ensureDXWrapperAvailable(context, componentId) { progress ->
         Timber.d("Downloading dxwrapper $componentId: ${(progress * 100).toInt()}%")
     }
 
-    if (componentFile == null) {
+    val extracted = if (componentFile == null) {
         // Legacy variant: use bundled asset
         Timber.d("Extracting dxwrapper $componentId from bundled assets")
         SharedComponents.extractAndLink(
@@ -6413,6 +6420,10 @@ private suspend fun extractDXWrapperComponent(
             componentFile, windowsDir, onExtractFileListener,
         )
     }
+    if (!extracted) {
+        Timber.e("dxwrapper $componentId could not be extracted (not bundled, not downloaded)")
+    }
+    return extracted
 }
 
 /**
@@ -6447,6 +6458,20 @@ private suspend fun installArm64ecDxWrapper(
     }
 }
 
+/** The DLLs a DXVK/D8VK install replaces, and the ones a failed install has to put back. */
+private val dxvkDlls = arrayOf(
+    "d3d10.dll",
+    "d3d10_1.dll",
+    "d3d10core.dll",
+    "d3d11.dll",
+    "d3d12.dll",
+    "d3d12core.dll",
+    "d3d8.dll",
+    "d3d9.dll",
+    "dxgi.dll",
+    "ddraw.dll",
+)
+
 private suspend fun extractDXWrapperFiles(
     context: Context,
     firstTimeBoot: Boolean,
@@ -6457,18 +6482,7 @@ private suspend fun extractDXWrapperFiles(
     contentsManager: ContentsManager,
     onExtractFileListener: OnExtractFileListener?,
 ) {
-    val dlls = arrayOf(
-        "d3d10.dll",
-        "d3d10_1.dll",
-        "d3d10core.dll",
-        "d3d11.dll",
-        "d3d12.dll",
-        "d3d12core.dll",
-        "d3d8.dll",
-        "d3d9.dll",
-        "dxgi.dll",
-        "ddraw.dll",
-    )
+    val dlls = dxvkDlls
     val splitDxWrapper = if (dxwrapper == "cnc-ddraw" || dxwrapper.startsWith("cnc-ddraw-")) {
         "cnc-ddraw"
     } else {
@@ -6532,13 +6546,31 @@ private suspend fun extractDXWrapperFiles(
                 // assets; fetch and install it the first time it is used.
                 profile = installArm64ecDxWrapper(context, dxwrapper)
             }
+            var installed = false
             if (profile != null) {
                 Timber.d("Applying user-defined DXVK content profile: " + dxwrapper)
                 contentsManager.applyContent(profile);
+                installed = true
             } else {
-                extractDXWrapperComponent(context, dxwrapper, windowsDir, onExtractFileListener)
+                installed = extractDXWrapperComponent(context, dxwrapper, windowsDir, onExtractFileListener)
             }
             extractDXWrapperComponent(context, "d8vk-${DefaultVersion.D8VK}", windowsDir, onExtractFileListener)
+
+            // A failed install used to leave the previous DXVK in system32, so the game started
+            // against DLLs this Wine cannot drive and died inside CreateDevice with an engine error
+            // that says nothing about DXVK. Put Wine's own DLLs back and remember the failure so
+            // the next launch can say so before the session starts.
+            if (installed) {
+                if (container.getExtra(DXVK_INSTALL_FAILED_EXTRA).isNotEmpty()) {
+                    container.putExtra(DXVK_INSTALL_FAILED_EXTRA, "")
+                    container.saveData()
+                }
+            } else {
+                Timber.e("DXVK %s is not installed; restoring the DLLs the prefix shipped with", dxwrapper)
+                restoreOriginalDllFiles(context, container, containerManager, imageFs, *dxvkDlls)
+                container.putExtra(DXVK_INSTALL_FAILED_EXTRA, dxwrapper)
+                container.saveData()
+            }
         }
     }
 }
