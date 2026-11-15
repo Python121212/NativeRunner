@@ -3513,4 +3513,5 @@
 
     <!-- arm64ec DXVK -->
     <string name="launch_risk_dxvk_arch">DXVK がこの Wine（arm64ec）と一致していません</string>
+    <string name="settings_debug_install_identity_title">インストール済みのビルド</string>
 </resources>

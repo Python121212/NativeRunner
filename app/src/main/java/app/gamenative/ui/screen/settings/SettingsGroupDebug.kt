@@ -31,6 +31,7 @@ import app.gamenative.ui.component.settings.SettingsMenuLink
 import app.gamenative.ui.component.settings.SettingsSwitch
 import app.gamenative.PrefManager
 import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.utils.InstallIdentity
 import app.gamenative.utils.LogExporter
 import app.gamenative.utils.PersistentLog
 import androidx.compose.runtime.rememberCoroutineScope
@@ -221,6 +222,19 @@ fun SettingsGroupDebug() {
                 onClick = { exportLogs() },
             )
         }
+        val identity = InstallIdentity.of(context)
+        SettingsMenuLink(
+            colors = settingsTileColors(),
+            title = { Text(text = stringResource(R.string.settings_debug_install_identity_title)) },
+            subtitle = {
+                Text(
+                    text = "${identity.versionName} (${identity.versionCode})\n" +
+                        "signer: ${identity.signerSha256}\n" +
+                        "from: ${identity.installer}",
+                )
+            },
+            onClick = { exportLogs() },
+        )
         SettingsMenuLink(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.settings_debug_export_logs_title)) },
