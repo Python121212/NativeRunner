@@ -13,6 +13,14 @@ plugins {
     alias(libs.plugins.room)
 }
 
+// 64-bit-only builds: the Pixel 9a (and every recent Pixel) has no 32-bit ABI, so the
+// armeabi-v7a payload can never run there. -Ppixel9a=true is the shorthand used by CI.
+val arm64Only: Boolean =
+    (project.findProperty("arm64Only") as String?)?.toBoolean() == true ||
+        (project.findProperty("pixel9a") as String?)?.toBoolean() == true
+val legacyAbis: List<String> =
+    if (arm64Only) listOf("arm64-v8a") else listOf("arm64-v8a", "armeabi-v7a")
+
 // CI speed switch: -PfastBuild=true produces the release-signed variant without
 // R8 minification / resource shrinking, which is minutes faster but larger.
 val fastBuild: Boolean = (project.findProperty("fastBuild") as String?)?.toBoolean() == true
@@ -133,14 +141,14 @@ android {
         create("legacy") {
             dimension = "androidApi"
             targetSdk = 28
-            ndk.abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            ndk.abiFilters += legacyAbis
             buildConfigField("boolean", "MODERN_ANDROID", "false")
             buildConfigField("String", "PRELOAD_BIONIC_SO", "\"libredirect-bionic.so\"")
         }
         create("legacyXr") {
             dimension = "androidApi"
             targetSdk = 28
-            ndk.abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            ndk.abiFilters += legacyAbis
             buildConfigField("boolean", "MODERN_ANDROID", "false")
             buildConfigField("String", "PRELOAD_BIONIC_SO", "\"libredirect-bionic.so\"")
             buildConfigField("boolean", "XR_BUILD", "true")

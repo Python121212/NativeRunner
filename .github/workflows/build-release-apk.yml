@@ -46,6 +46,10 @@ on:
         description: "ベンチマーク用: --rerun-tasks でキャッシュを使わず全タスクを実行"
         type: boolean
         default: false
+      pixel9a:
+        description: "Pixel 9a 向け（arm64 のみ・32bit資産を除外）"
+        type: boolean
+        default: false
   push:
     branches: [ main ]
 
@@ -207,6 +211,7 @@ jobs:
           FAST: ${{ inputs.fast || 'false' }}
           TIMINGS: ${{ inputs.timings || 'false' }}
           COLD: ${{ inputs.cold_build || 'false' }}
+          PIXEL9A: ${{ inputs.pixel9a || 'false' }}
         run: |
           set -euo pipefail
           TASKS=""
@@ -218,6 +223,10 @@ jobs:
           esac
 
           SPEED="-PskipReleaseLint=true -PciCacheDependencies=true"
+          if [ "${PIXEL9A}" = "true" ]; then
+            SPEED="$SPEED -Ppixel9a=true"
+            echo "Pixel 9a target: arm64-v8a only (armeabi-v7a payload dropped)"
+          fi
           if [ "${FAST}" = "true" ]; then
             SPEED="$SPEED -PfastBuild=true"
             echo "fast mode: R8 / resource shrinking disabled"
