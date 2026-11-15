@@ -37,7 +37,10 @@ import app.gamenative.ui.enums.ConnectionState
 import app.gamenative.ui.screen.PluviaScreen
 import app.gamenative.ui.screen.support.SupportAppliedRun
 import app.gamenative.utils.ContainerUtils
+import app.gamenative.R
 import app.gamenative.utils.DebugReportUtils
+import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.utils.PersistentLog
 import app.gamenative.utils.DebugRunParamsHolder
 import app.gamenative.utils.IntentLaunchManager
 import app.gamenative.utils.SteamUtils
@@ -345,6 +348,15 @@ class MainViewModel @Inject constructor(
             }
             withContext(Dispatchers.IO) { DebugReportUtils.takePendingOffer(appContext) }
                 ?.let { _uiEvent.send(MainUiEvent.ShowDebugReportDialog(it)) }
+        }
+
+        // A session that ended in a device reboot left a log nobody could read yet: say so,
+        // because that log is the only evidence of what took the phone down.
+        viewModelScope.launch {
+            val previous = withContext(Dispatchers.IO) { PersistentLog.lastSession }
+            if (previous?.end == PersistentLog.PreviousEnd.REBOOT) {
+                SnackbarManager.show(appContext.getString(R.string.settings_debug_previous_session_reboot))
+            }
         }
 
         // Register event handlers
