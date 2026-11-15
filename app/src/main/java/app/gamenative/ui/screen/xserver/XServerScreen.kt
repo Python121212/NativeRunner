@@ -154,6 +154,7 @@ import app.gamenative.utils.CustomGameScanner
 import app.gamenative.utils.DebugReportUtils
 import app.gamenative.utils.GameSessionId
 import app.gamenative.utils.GuestOutputTail
+import app.gamenative.utils.StaleSessionProcesses
 import app.gamenative.utils.DebugRunParams
 import app.gamenative.utils.DebugRunParamsHolder
 import app.gamenative.utils.ExecutableSelectionUtils
@@ -4482,6 +4483,11 @@ private fun setupXEnvironment(
 
     val rootPath = imageFs.getRootDir().getPath()
     FileUtils.clear(imageFs.getTmpDir())
+
+    // Helpers from a previous session (box64/FEX, wine, proot, gamescope/Xwayland, pulse) hold the
+    // GPU/audio nodes, the shared memory and the tmp-dir sockets. Purge them before this environment
+    // binds to those resources so the launch starts from a clean slate.
+    StaleSessionProcesses.purge(imageFs.getRootDir())
 
     val usrGlibc: Boolean = container.getContainerVariant().equals(Container.GLIBC, ignoreCase = true)
     val guestProgramLauncherComponent = if (usrGlibc) {

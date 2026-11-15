@@ -211,7 +211,7 @@ jobs:
           FAST: ${{ inputs.fast || 'false' }}
           TIMINGS: ${{ inputs.timings || 'false' }}
           COLD: ${{ inputs.cold_build || 'false' }}
-          PIXEL9A: ${{ inputs.pixel9a || 'false' }}
+          PIXEL9A: ${{ inputs.pixel9a || '' }}
         run: |
           set -euo pipefail
           TASKS=""
@@ -221,6 +221,12 @@ jobs:
             both)   TASKS=":app:assembleLegacyRelease-signed :app:assembleModernRelease-signed" ;;
             *) echo "unknown flavors input: ${FLAVORS}"; exit 1 ;;
           esac
+
+          # Push builds target the reference device (Pixel 9a): 64-bit only, so the
+          # armeabi-v7a payload is dropped and packaging stays cheap.
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ -z "${PIXEL9A}" ]; then
+            PIXEL9A="true"
+          fi
 
           SPEED="-PskipReleaseLint=true -PciCacheDependencies=true"
           if [ "${PIXEL9A}" = "true" ]; then
@@ -306,12 +312,23 @@ jobs:
       - name: Stage APKs
         run: |
           set -euo pipefail
+          # versionName / versionCode straight from the module build file, so the artefact
+          # name always matches the APK's own manifest.
+          VERSION="$(grep -m1 -E '^[[:space:]]*versionName[[:space:]]*=' app/build.gradle.kts \
+            | sed -E 's/.*"([^"]+)".*/\1/')"
+          VERSION_CODE="$(grep -m1 -E '^[[:space:]]*versionCode[[:space:]]*=' app/build.gradle.kts \
+            | sed -E 's/[^0-9]//g')"
+          : "${VERSION:?could not read versionName from app/build.gradle.kts}"
+          echo "APK_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "APK_VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_ENV"
           mkdir -p out
           if ls app/build/outputs/apk/legacy/release-signed/*.apk >/dev/null 2>&1; then
-            cp app/build/outputs/apk/legacy/release-signed/*.apk "out/GameNative-legacy-release-signed.apk"
+            cp app/build/outputs/apk/legacy/release-signed/*.apk \
+              "out/GameNative-${VERSION}-legacy-release-signed.apk"
           fi
           if ls app/build/outputs/apk/modern/release-signed/*.apk >/dev/null 2>&1; then
-            cp app/build/outputs/apk/modern/release-signed/*.apk "out/GameNative-modern-release-signed.apk"
+            cp app/build/outputs/apk/modern/release-signed/*.apk \
+              "out/GameNative-${VERSION}-modern-release-signed.apk"
           fi
           ls -lh out/
 
@@ -326,8 +343,8 @@ jobs:
           set -euo pipefail
           gh release create "$TAG" out/*.apk \
             --target "${{ github.sha }}" \
-            --title "Release APK #${{ github.run_number }}" \
-            --notes "Automated release-signed build of \`${{ github.sha }}\` (flavors: ${{ inputs.flavors || 'legacy' }}).
+            --title "GameNative ${APK_VERSION} (build #${{ github.run_number }})" \
+            --notes "Automated release-signed build of \`${{ github.sha }}\` — version ${APK_VERSION} (versionCode ${APK_VERSION_CODE}), flavors: ${{ inputs.flavors || 'legacy' }}.
 
           - 署名: ci/release のリリース鍵（自己署名）
           - 上流 GameNative とは署名が異なるため、既存インストールの上書き更新はできません
