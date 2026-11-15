@@ -153,30 +153,43 @@ jobs:
         run: |
           set -euo pipefail
           ./gradlew --no-daemon --stacktrace -Pkotlin.daemon.jvmargs=-Xmx4g \
-            :app:assembleLegacyRelease-signed \
-            :app:assembleModernRelease-signed 2>&1 | tee /tmp/gradle-build.log
+            :app:assembleLegacyRelease-signed 2>&1 | tee /tmp/gradle-build.log
           ./gradlew --stop || true
           find app/build/outputs/apk -name '*.apk' -printf '%s %p\n'
 
-      # The build log is pushed to the `ci-logs` branch so it can be inspected
-      # with plain `git fetch` (artifact/log downloads are not always reachable).
-      - name: Publish build log to ci-logs branch
+      # Build logs are mirrored into the `ci-logs` branch (artifact and log
+      # downloads redirect to hosts that automation cannot always reach) and the
+      # failure reason is surfaced as a check annotation.
+      - name: Publish build log
         if: always()
         env:
           RUN_ID: ${{ github.run_id }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          LOG=".ci-logs/gradle-${RUN_ID}.log"
+          if [ -f /tmp/gradle-build.log ]; then
+            EXCERPT="$(awk '/What went wrong/{f=1} f' /tmp/gradle-build.log | head -40)"
+            [ -z "$EXCERPT" ] && EXCERPT="$(tail -40 /tmp/gradle-build.log)"
+            ESCAPED="$(printf '%s\n' "$EXCERPT" | head -c 3500 | sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN{ORS="%0A"} {print}')"
+            echo "::error title=gradle-log-${RUN_ID}::$ESCAPED"
+          fi
           mkdir -p .ci-logs
           if [ -f /tmp/gradle-build.log ]; then
-            tail -c 3000000 /tmp/gradle-build.log > ".ci-logs/gradle-${RUN_ID}.log" || true
+            tail -c 3000000 /tmp/gradle-build.log > "$LOG" || true
           else
-            echo "no gradle log captured" > ".ci-logs/gradle-${RUN_ID}.log"
+            echo "no gradle log captured" > "$LOG"
           fi
           git config user.name "ci-bot"
           git config user.email "ci-bot@users.noreply.github.com"
-          git add -f ".ci-logs/gradle-${RUN_ID}.log"
-          git commit -m "ci: gradle log for run ${RUN_ID} [${{ job.status }}]" || true
-          git push --force origin "HEAD:refs/heads/ci-logs" || echo "log push failed"
+          git add -f "$LOG"
+          git commit -m "ci: gradle log for run ${RUN_ID}" || true
+          if git push --force origin "HEAD:refs/heads/ci-logs" > /tmp/push.log 2>&1; then
+            echo "log pushed to ci-logs"
+          else
+            echo "log push failed:"
+            tail -5 /tmp/push.log
+            echo "::error title=ci-logs-push::$(tail -5 /tmp/push.log | tr '\n' ' ' | head -c 500)"
+          fi
 
       - name: Verify APK signatures
         run: |
@@ -194,7 +207,9 @@ jobs:
           set -euo pipefail
           mkdir -p out
           cp app/build/outputs/apk/legacy/release-signed/*.apk "out/GameNative-legacy-release-signed.apk"
-          cp app/build/outputs/apk/modern/release-signed/*.apk "out/GameNative-modern-release-signed.apk"
+          if ls app/build/outputs/apk/modern/release-signed/*.apk >/dev/null 2>&1; then
+            cp app/build/outputs/apk/modern/release-signed/*.apk "out/GameNative-modern-release-signed.apk"
+          fi
           ls -lh out/
 
       - uses: actions/upload-artifact@v4
