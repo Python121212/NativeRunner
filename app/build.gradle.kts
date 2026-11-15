@@ -13,6 +13,10 @@ plugins {
     alias(libs.plugins.room)
 }
 
+// CI speed switch: -PfastBuild=true produces the release-signed variant without
+// R8 minification / resource shrinking, which is minutes faster but larger.
+val fastBuild: Boolean = (project.findProperty("fastBuild") as String?)?.toBoolean() == true
+
 val keystorePropertiesFile = rootProject.file("app/keystores/keystore.properties")
 val keystoreProperties: Properties? = if (keystorePropertiesFile.exists()) {
     Properties().apply {
@@ -178,8 +182,8 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         create("release-signed") {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = !fastBuild
+            isShrinkResources = !fastBuild
             signingConfig = signingConfigs.getByName("pluvia")
         }
         create("release-gold") {

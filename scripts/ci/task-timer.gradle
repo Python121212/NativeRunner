@@ -1,0 +1,20 @@
+// Per-task timing for CI. Applied with:
+//   ./gradlew --init-script scripts/ci/task-timer.gradle ...
+// Emits one line per task slower than --min-ms (default 250):
+//   TIMER	<millis>	<task path>
+def minMs = (System.getProperty("taskTimer.minMs") ?: "250") as long
+def starts = [:]
+
+gradle.taskGraph.beforeTask { t ->
+    starts[t.path] = System.currentTimeMillis()
+}
+
+gradle.taskGraph.afterTask { t ->
+    def start = starts.remove(t.path)
+    if (start != null) {
+        def elapsed = System.currentTimeMillis() - start
+        if (elapsed >= minMs) {
+            println "TIMER\t${elapsed}\t${t.path}"
+        }
+    }
+}
