@@ -152,11 +152,31 @@ jobs:
       - name: Build release-signed APKs
         run: |
           set -euo pipefail
-          ./gradlew --no-daemon -Pkotlin.daemon.jvmargs=-Xmx4g \
+          ./gradlew --no-daemon --stacktrace -Pkotlin.daemon.jvmargs=-Xmx4g \
             :app:assembleLegacyReleaseSigned \
-            :app:assembleModernReleaseSigned
+            :app:assembleModernReleaseSigned 2>&1 | tee /tmp/gradle-build.log
           ./gradlew --stop || true
           find app/build/outputs/apk -name '*.apk' -printf '%s %p\n'
+
+      # The build log is pushed to the `ci-logs` branch so it can be inspected
+      # with plain `git fetch` (artifact/log downloads are not always reachable).
+      - name: Publish build log to ci-logs branch
+        if: always()
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-logs
+          if [ -f /tmp/gradle-build.log ]; then
+            tail -c 3000000 /tmp/gradle-build.log > ".ci-logs/gradle-${RUN_ID}.log" || true
+          else
+            echo "no gradle log captured" > ".ci-logs/gradle-${RUN_ID}.log"
+          fi
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git add -f ".ci-logs/gradle-${RUN_ID}.log"
+          git commit -m "ci: gradle log for run ${RUN_ID} [${{ job.status }}]" || true
+          git push --force origin "HEAD:refs/heads/ci-logs" || echo "log push failed"
 
       - name: Verify APK signatures
         run: |
