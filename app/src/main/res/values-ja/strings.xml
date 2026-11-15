@@ -3510,4 +3510,7 @@
     <string name="session_risk_memory_body">Android がメモリを確保しようとしており、このアプリが終了する可能性があります。\n\n%1$s</string>
     <string name="session_risk_ack">了解</string>
     <string name="session_risk_ack_hint">くり返す場合は画質設定を下げるか、少し休ませてください。</string>
+
+    <!-- arm64ec DXVK -->
+    <string name="launch_risk_dxvk_arch">DXVK がこの Wine（arm64ec）と一致していません</string>
 </resources>

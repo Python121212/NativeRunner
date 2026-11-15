@@ -144,8 +144,22 @@ object PersistentLog {
     /** The tail of the newest session log, for a report or the export bundle. */
     fun exportTail(context: Context, maxBytes: Long = EXPORT_TAIL_BYTES): String {
         val file = logFiles(context).firstOrNull() ?: return "(no persistent log yet)"
-        return runCatching { readTail(file, maxBytes) }.getOrElse { "Failed to read ${file.name}: ${it.message}" }
+        return export(context, file, maxBytes)
     }
+
+    /**
+     * The tail of [file]. This is what matters after a crash: the newest file is the session the
+     * user is looking at, while the previous one holds the last lines before the process died.
+     */
+    fun export(context: Context, file: File?, maxBytes: Long = EXPORT_TAIL_BYTES): String {
+        val target = file ?: return "(no log file)"
+        if (!target.isFile) return "(${target.name} is gone)"
+        return runCatching { readTail(target, maxBytes) }
+            .getOrElse { "Failed to read ${target.name}: ${it.message}" }
+    }
+
+    /** Everything the previous session wrote, newest first, as a list of files. */
+    fun previousLogFiles(context: Context): List<File> = logFiles(context)
 
     private fun openNewFileLocked(directory: File) {
         val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())

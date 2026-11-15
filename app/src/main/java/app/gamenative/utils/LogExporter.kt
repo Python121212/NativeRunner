@@ -30,6 +30,7 @@ import java.util.Locale
 object LogExporter {
     private const val EXPORT_DIR = "logs-export"
     private const val WINEG_LOG_TAIL_BYTES = 192L * 1024L
+    private const val PREVIOUS_LOG_BYTES = 512L * 1024L
     private const val LOGCAT_LINES = 800
     private const val CRASH_REPORTS = 2
     private const val EXIT_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
@@ -73,7 +74,21 @@ object LogExporter {
                     }
                 }
 
-                writeSection(out, "persistent log (tail)") {
+                writeSection(out, "persistent log (previous session)") {
+                    val previous = PersistentLog.lastSession
+                    val previousFile = previous?.file
+                    if (previous == null || previousFile == null || !previousFile.isFile) {
+                        it.write("(no previous session log)\n")
+                    } else {
+                        it.write("file        : ${previousFile.name} (${previousFile.length()} bytes)\n")
+                        it.write("end         : ${previous.end}\n")
+                        it.write("--- tail ---\n")
+                        it.write(PersistentLog.export(context, previousFile, PREVIOUS_LOG_BYTES))
+                        it.write("\n")
+                    }
+                }
+
+                writeSection(out, "persistent log (this session)") {
                     it.write(PersistentLog.exportTail(context))
                     it.write("\n")
                 }

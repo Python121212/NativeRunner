@@ -25,9 +25,27 @@ public class DXVKHelper {
 
         String content = "\"";
         String maxDeviceMemory = config.get("maxDeviceMemory");
+        // The configured value is a wish; the budget is what the device can hand out right now.
+        // DXVK allocates what it is allowed to and the low-memory killer takes the difference.
         if (!maxDeviceMemory.isEmpty() && !maxDeviceMemory.equals("0")) {
-            content += "dxgi.maxDeviceMemory = "+maxDeviceMemory+"\n";
-            content += "dxgi.maxSharedMemory = "+maxDeviceMemory+"\n";
+            int configured = 0;
+            try { configured = Integer.parseInt(maxDeviceMemory.trim()); } catch (NumberFormatException ignored) { }
+            int effective = configured > 0 ? app.gamenative.utils.MemoryBudget.clamp(context, configured) : 0;
+            if (effective != configured && effective > 0) {
+                android.util.Log.i("DXVKHelper", "dxgi.maxDeviceMemory " + configured + "MB -> " + effective + "MB (memory budget)");
+                try {
+                    app.gamenative.utils.PersistentLog.INSTANCE.write(
+                        android.util.Log.INFO, "DXVKHelper",
+                        "maxDeviceMemory " + configured + "MB clamped to " + effective + "MB");
+                } catch (Throwable ignored) { }
+            }
+            if (effective > 0) {
+                content += "dxgi.maxDeviceMemory = "+effective+"\n";
+                content += "dxgi.maxSharedMemory = "+effective+"\n";
+            } else {
+                content += "dxgi.maxDeviceMemory = "+maxDeviceMemory+"\n";
+                content += "dxgi.maxSharedMemory = "+maxDeviceMemory+"\n";
+            }
         }
 
         String maxFeatureLevel = config.get("maxFeatureLevel");

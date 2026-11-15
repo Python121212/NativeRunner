@@ -1,6 +1,5 @@
 package app.gamenative.utils
 
-import android.app.ActivityManager
 import android.content.Context
 import android.os.StatFs
 import app.gamenative.powercontrol.ThermalGuard
@@ -23,6 +22,12 @@ enum class LaunchRiskCode(val rebootRisk: Boolean) {
 
     /** Direct3D 11 without DXVK: the game starts and then reports a missing feature level. */
     NO_DXVK(false),
+
+    /**
+     * An arm64ec Wine with an x86_64 (or absent) DXVK: the arm64ec loader cannot load those DLLs,
+     * so Direct3D 11 falls back to Wine's builtin and the game reports a missing GPU.
+     */
+    DXVK_WRONG_ARCH(false),
 
     /** The driver is asked for more memory than the device can hand out. */
     VRAM_OVER_COMMIT(false),
@@ -91,6 +96,25 @@ object LaunchRiskAssessor {
             }
         }
 
+        // arm64ec Wine needs arm64ec Direct3D DLLs. Anything else is a session that starts and
+        // then fails to create a D3D11 device.
+        if (container.wineVersion.orEmpty().contains("arm64ec", ignoreCase = true)) {
+            val wrapper = container.dxWrapper.orEmpty().lowercase(Locale.US)
+            val version = KeyValueSet(container.dxWrapperConfig).get("version")
+            if (!wrapper.contains("dxvk")) {
+                risks += LaunchRisk(
+                    LaunchRiskCode.DXVK_WRONG_ARCH,
+                    "arm64ec Wine with dxwrapper '$wrapper': Direct3D 11 needs DXVK " +
+                        ExtraComponents.RECOMMENDED_ARM64EC_DXVK,
+                )
+            } else if (!ExtraComponents.isArm64ecComponent(version)) {
+                risks += LaunchRisk(
+                    LaunchRiskCode.DXVK_WRONG_ARCH,
+                    "DXVK '${version.ifEmpty { "default" }}' is not an arm64ec build",
+                )
+            }
+        }
+
         val availableMb = availableRamMb(context)
         val requestedMb = KeyValueSet(container.graphicsDriverConfig)
             .get("maxDeviceMemory", "0").toIntOrNull() ?: 0
@@ -120,14 +144,7 @@ object LaunchRiskAssessor {
         return risks
     }
 
-    private fun availableRamMb(context: Context): Int {
-        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return 0
-        val info = ActivityManager.MemoryInfo()
-        return runCatching {
-            am.getMemoryInfo(info)
-            (info.availMem / (1024L * 1024L)).toInt()
-        }.getOrDefault(0)
-    }
+    private fun availableRamMb(context: Context): Int = MemoryBudget.freeRamMb(context)
 
     private fun freeStorageMb(context: Context): Long = runCatching {
         StatFs(context.filesDir.absolutePath).availableBytes / (1024L * 1024L)
