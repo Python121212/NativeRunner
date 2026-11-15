@@ -52,6 +52,7 @@ object LogExporter {
                     it.write("version     : ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n")
                     it.write("installed   : ${identity.versionName} (${identity.versionCode})\n")
                     it.write("package     : ${BuildConfig.APPLICATION_ID}\n")
+                    it.write("flavor      : ${if (BuildConfig.MODERN_ANDROID) "modern" else "legacy"}\n")
                     it.write("debug build : ${BuildConfig.DEBUG}\n")
                     // Decides whether an update installs at all: same signer = update, different
                     // signer = "app not installed".
