@@ -6,12 +6,12 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
-import android.widget.Toast
 import app.gamenative.PluviaApp
 import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.powercontrol.metrics.JsonlSessionLog
 import app.gamenative.powercontrol.metrics.ThermalHeadroom
+import app.gamenative.ui.util.SnackbarManager
 import timber.log.Timber
 import java.io.File
 import java.util.Locale
@@ -318,7 +318,7 @@ object ThermalGuard {
         Timber.tag(TAG).i("%s -> %s, cap=%d", previous, next, cap)
     }
 
-    /** A toast, but only while the session is in front of the user. */
+    /** A snackbar, but only while the session is in front of the user. */
     private fun notifyLevel(level: Level, cap: Int) {
         val context = appContext ?: return
         if (!PluviaApp.isActivityInForeground) return
@@ -331,7 +331,7 @@ object ThermalGuard {
         } ?: return
 
         Handler(Looper.getMainLooper()).post {
-            runCatching { Toast.makeText(context, message, Toast.LENGTH_LONG).show() }
+            runCatching { SnackbarManager.show(message) }
         }
     }
 
