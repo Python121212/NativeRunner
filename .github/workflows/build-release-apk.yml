@@ -1,0 +1,175 @@
+name: Build Release APK
+
+# 2 modes:
+#   bootstrap-keystore : generate the release signing key once and upload it as an
+#                        artifact (download it, store it as repo secrets, then delete
+#                        the run). Only needed when KEYSTORE* secrets are not set yet.
+#   build              : build the release-signed APKs and upload them as artifacts.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "build = APKをビルド / bootstrap-keystore = 署名鍵を初回生成"
+        type: choice
+        options:
+          - build
+          - bootstrap-keystore
+        default: build
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: release-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # One-off: create the release keystore (JKS) and expose it as a build artifact.
+  # ---------------------------------------------------------------------------
+  bootstrap-keystore:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'bootstrap-keystore'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Generate release keystore
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          STORE_PASS="$(openssl rand -hex 16)"
+          KEY_PASS="$STORE_PASS"
+          ALIAS="nativerunner"
+          keytool -genkeypair \
+            -keystore out/release.jks \
+            -storetype JKS \
+            -alias "$ALIAS" \
+            -keyalg RSA \
+            -keysize 4096 \
+            -validity 10950 \
+            -storepass "$STORE_PASS" \
+            -keypass "$KEY_PASS" \
+            -dname "CN=NativeRunner, OU=Release, O=NativeRunner, C=JP"
+          cat > out/credentials.txt <<EOF
+          KEYSTORE_KEY_ALIAS=$ALIAS
+          KEYSTORE_KEY_PASSWORD=$KEY_PASS
+          KEYSTORE_STORE_PASSWORD=$STORE_PASS
+          EOF
+          keytool -list -v -keystore out/release.jks -storepass "$STORE_PASS" | head -30
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-keystore
+          path: out/
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # Build the release-signed APKs.
+  # ---------------------------------------------------------------------------
+  build:
+    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift
+          df -h /
+
+      - name: Add swap
+        run: |
+          sudo fallocate -l 8G /mnt/swapfile.ci || sudo dd if=/dev/zero of=/mnt/swapfile.ci bs=1M count=8192
+          sudo chmod 600 /mnt/swapfile.ci
+          sudo mkswap /mnt/swapfile.ci
+          sudo swapon /mnt/swapfile.ci
+          free -m
+
+      - uses: actions/checkout@v4
+
+      - name: Restore large binary assets (assets / jniLibs / bundletool)
+        run: scripts/fetch-large-assets.sh
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install Android SDK packages
+        run: |
+          SDKMANAGER="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          yes | "$SDKMANAGER" --install "platforms;android-36" "build-tools;35.0.0" "platform-tools" || true
+          df -h /
+
+      - name: Configure release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_KEY_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS }}
+          KEYSTORE_KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          KEYSTORE_STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "::error::KEYSTORE_BASE64 secret is not set. Run this workflow with mode=bootstrap-keystore first, then store the downloaded keystore as secrets."
+            exit 1
+          fi
+          mkdir -p app/keystores
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > app/keystores/keystore
+          {
+            echo "storeFile=keystores/keystore"
+            echo "keyAlias=$KEYSTORE_KEY_ALIAS"
+            echo "storePassword=$KEYSTORE_STORE_PASSWORD"
+            echo "keyPassword=$KEYSTORE_KEY_PASSWORD"
+          } > app/keystores/keystore.properties
+          ls -l app/keystores/
+
+      - name: Inject optional build credentials
+        run: |
+          cat > local.properties <<EOF
+          POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}
+          STEAMGRIDDB_API_KEY=${{ secrets.STEAMGRIDDB_API_KEY }}
+          CLOUD_PROJECT_NUMBER=${{ secrets.CLOUD_PROJECT_NUMBER }}
+          EOF
+
+      - name: Build release-signed APKs
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon -Pkotlin.daemon.jvmargs=-Xmx4g \
+            :app:assembleLegacyReleaseSigned \
+            :app:assembleModernReleaseSigned
+          ./gradlew --stop || true
+          find app/build/outputs/apk -name '*.apk' -printf '%s %p\n'
+
+      - name: Verify APK signatures
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS="$(ls -d "${ANDROID_HOME:-$ANDROID_SDK_ROOT}"/build-tools/*/ 2>/dev/null | sort -V | tail -1)"
+          APKSIGNER="${BUILD_TOOLS}apksigner"
+          echo "using $APKSIGNER"
+          for apk in $(find app/build/outputs/apk -name '*.apk'); do
+            echo "== $apk"
+            "$APKSIGNER" verify --print-certs "$apk"
+          done
+
+      - name: Stage APKs
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/legacy/release-signed/*.apk "out/GameNative-legacy-release-signed.apk"
+          cp app/build/outputs/apk/modern/release-signed/*.apk "out/GameNative-modern-release-signed.apk"
+          ls -lh out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-signed-apk
+          path: out/*.apk
+          retention-days: 30
