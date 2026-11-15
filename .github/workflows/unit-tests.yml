@@ -141,6 +141,14 @@ jobs:
           LOG=".ci-logs/unit-tests-${RUN_ID}-${VARIANT}.log"
           mkdir -p .ci-logs
           {
+            echo "=== results by class ==="
+            python3 - <<'PY' || true
+          import glob, xml.etree.ElementTree as ET
+          for f in sorted(glob.glob("app/build/test-results/**/TEST-*.xml", recursive=True)):
+              root = ET.parse(f).getroot()
+              bad = int(root.get("failures", 0)) + int(root.get("errors", 0))
+              print(f"{root.get('tests'):>5} tests, {bad:>2} failed  {root.get('name')}")
+          PY
             echo "=== failures ==="
             grep -h -A6 '<failure\|<error' app/build/test-results/**/TEST-*.xml 2>/dev/null | head -200 || true
             echo "=== gradle log (tail) ==="
