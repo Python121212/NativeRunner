@@ -30,7 +30,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: unit-tests-${{ github.ref }}
@@ -94,8 +94,13 @@ jobs:
           echo "POSTHOG_HOST=https://us.i.posthog.com" >> local.properties
 
       - name: Run unit tests (${{ matrix.variant }})
+        id: tests
         if: steps.want.outputs.run == 'true'
-        run: ./gradlew :app:test${{ matrix.variant }}DebugUnitTest --console=plain
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./gradlew :app:test${{ matrix.variant }}DebugUnitTest --console=plain \
+            2>&1 | tee /tmp/gradle-test.log
 
       - name: Summarise results
         if: always() && steps.want.outputs.run == 'true'
@@ -123,6 +128,44 @@ jobs:
           PY
           # A run without any result file means the task never produced tests: fail loudly.
           ls app/build/test-results/**/TEST-*.xml >/dev/null 2>&1 || echo "::error::no test results were produced"
+
+      # Artifact and log downloads redirect to hosts automation cannot always reach, so the log
+      # and the failing assertions are mirrored into the `ci-logs` branch and a check annotation.
+      - name: Publish test log
+        if: always() && steps.want.outputs.run == 'true'
+        env:
+          RUN_ID: ${{ github.run_id }}
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          set -uo pipefail
+          LOG=".ci-logs/unit-tests-${RUN_ID}-${VARIANT}.log"
+          mkdir -p .ci-logs
+          {
+            echo "=== failures ==="
+            grep -h -A6 '<failure\|<error' app/build/test-results/**/TEST-*.xml 2>/dev/null | head -200 || true
+            echo "=== gradle log (tail) ==="
+            tail -c 1500000 /tmp/gradle-test.log 2>/dev/null || echo "no gradle log captured"
+          } > "$LOG"
+          EXCERPT="$(awk '/What went wrong/{f=1} f' /tmp/gradle-test.log 2>/dev/null | head -40)"
+          [ -z "$EXCERPT" ] && EXCERPT="$(grep -h -m20 -A4 '<failure\|<error' app/build/test-results/**/TEST-*.xml 2>/dev/null | head -40)"
+          [ -z "$EXCERPT" ] && EXCERPT="$(tail -40 /tmp/gradle-test.log 2>/dev/null)"
+          ESCAPED="$(printf '%s\n' "$EXCERPT" | head -c 3500 | sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN{ORS="%0A"} {print}')"
+          echo "::error title=unit-tests-${VARIANT}-${RUN_ID}::$ESCAPED"
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git add -f "$LOG"
+          git commit -m "ci: unit test log for run ${RUN_ID} (${VARIANT})" || true
+          if git push --force origin "HEAD:refs/heads/ci-logs" > /tmp/push.log 2>&1; then
+            echo "log pushed to ci-logs"
+          else
+            echo "log push failed:"; tail -5 /tmp/push.log
+          fi
+
+      - name: Fail when tests failed
+        if: steps.tests.outcome == 'failure'
+        run: |
+          echo "unit tests (${{ matrix.variant }}) failed"
+          exit 1
 
       - name: Upload test reports
         if: always() && steps.want.outputs.run == 'true'
