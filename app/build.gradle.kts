@@ -51,6 +51,8 @@ android {
                 storePassword = keystoreProperties["storePassword"].toString()
                 keyAlias = keystoreProperties["keyAlias"].toString()
                 keyPassword = keystoreProperties["keyPassword"].toString()
+                // Optional: lets CI use a PKCS12 keystore (default is JKS).
+                keystoreProperties.getProperty("storeType")?.let { storeType = it }
             }
         }
     }

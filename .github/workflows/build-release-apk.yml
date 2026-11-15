@@ -1,10 +1,10 @@
 name: Build Release APK
 
-# 2 modes:
-#   bootstrap-keystore : generate the release signing key once and upload it as an
-#                        artifact (download it, store it as repo secrets, then delete
-#                        the run). Only needed when KEYSTORE* secrets are not set yet.
-#   build              : build the release-signed APKs and upload them as artifacts.
+# Produces release-signed APKs (legacy + modern flavors) and attaches them to a
+# GitHub release so they can be downloaded without logging in to Actions.
+#
+# Signing key: ci/release/release-keystore.p12 (see ci/release/README.md).
+# If the KEYSTORE_BASE64 secret is set, that secret takes precedence.
 
 on:
   workflow_dispatch:
@@ -24,15 +24,18 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   # ---------------------------------------------------------------------------
-  # One-off: create the release keystore (JKS) and expose it as a build artifact.
+  # Optional one-off helper: generate a fresh keystore and expose it as an
+  # artifact (useful when moving the key out of the repo and into secrets).
   # ---------------------------------------------------------------------------
   bootstrap-keystore:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'bootstrap-keystore'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/setup-java@v4
         with:
@@ -44,21 +47,21 @@ jobs:
           set -euo pipefail
           mkdir -p out
           STORE_PASS="$(openssl rand -hex 16)"
-          KEY_PASS="$STORE_PASS"
           ALIAS="nativerunner"
           keytool -genkeypair \
             -keystore out/release.jks \
-            -storetype JKS \
+            -storetype PKCS12 \
             -alias "$ALIAS" \
             -keyalg RSA \
             -keysize 4096 \
             -validity 10950 \
             -storepass "$STORE_PASS" \
-            -keypass "$KEY_PASS" \
-            -dname "CN=NativeRunner, OU=Release, O=NativeRunner, C=JP"
+            -keypass "$STORE_PASS" \
+            -dname "CN=NativeRunner Release, OU=Release, O=NativeRunner, C=JP"
+          base64 -w0 out/release.jks > out/keystore.b64
           cat > out/credentials.txt <<EOF
           KEYSTORE_KEY_ALIAS=$ALIAS
-          KEYSTORE_KEY_PASSWORD=$KEY_PASS
+          KEYSTORE_KEY_PASSWORD=$STORE_PASS
           KEYSTORE_STORE_PASSWORD=$STORE_PASS
           EOF
           keytool -list -v -keystore out/release.jks -storepass "$STORE_PASS" | head -30
@@ -75,7 +78,7 @@ jobs:
   build:
     if: github.event_name != 'workflow_dispatch' || inputs.mode == 'build'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 150
     steps:
       - name: Free disk space
         run: |
@@ -118,19 +121,24 @@ jobs:
           KEYSTORE_STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ -z "${KEYSTORE_BASE64:-}" ]; then
-            echo "::error::KEYSTORE_BASE64 secret is not set. Run this workflow with mode=bootstrap-keystore first, then store the downloaded keystore as secrets."
-            exit 1
-          fi
           mkdir -p app/keystores
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > app/keystores/keystore
-          {
-            echo "storeFile=keystores/keystore"
-            echo "keyAlias=$KEYSTORE_KEY_ALIAS"
-            echo "storePassword=$KEYSTORE_STORE_PASSWORD"
-            echo "keyPassword=$KEYSTORE_KEY_PASSWORD"
-          } > app/keystores/keystore.properties
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            echo "using keystore from repository secrets"
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > app/keystores/keystore
+            {
+              echo "storeFile=keystores/keystore"
+              echo "storeType=PKCS12"
+              echo "keyAlias=$KEYSTORE_KEY_ALIAS"
+              echo "storePassword=$KEYSTORE_STORE_PASSWORD"
+              echo "keyPassword=$KEYSTORE_KEY_PASSWORD"
+            } > app/keystores/keystore.properties
+          else
+            echo "using keystore checked in at ci/release/"
+            cp ci/release/release-keystore.p12 app/keystores/keystore
+            cp ci/release/keystore.properties app/keystores/keystore.properties
+          fi
           ls -l app/keystores/
+          cat app/keystores/keystore.properties | sed 's/\(Password=\).*/\1***/'
 
       - name: Inject optional build credentials
         run: |
@@ -163,6 +171,7 @@ jobs:
 
       - name: Stage APKs
         run: |
+          set -euo pipefail
           mkdir -p out
           cp app/build/outputs/apk/legacy/release-signed/*.apk "out/GameNative-legacy-release-signed.apk"
           cp app/build/outputs/apk/modern/release-signed/*.apk "out/GameNative-modern-release-signed.apk"
@@ -173,3 +182,18 @@ jobs:
           name: release-signed-apk
           path: out/*.apk
           retention-days: 30
+
+      - name: Publish APKs to a GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: apk-${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" out/*.apk \
+            --target "${{ github.sha }}" \
+            --title "Release APK #${{ github.run_number }}" \
+            --notes "Automated release-signed build of \`${{ github.sha }}\`.
+
+          - 署名: ci/release のリリース鍵（自己署名）
+          - 上流 GameNative とは署名が異なるため、既存インストールの上書き更新はできません
+          - ビルドログ: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
