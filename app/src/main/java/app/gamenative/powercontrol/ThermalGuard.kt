@@ -12,6 +12,7 @@ import app.gamenative.R
 import app.gamenative.powercontrol.metrics.JsonlSessionLog
 import app.gamenative.powercontrol.metrics.ThermalHeadroom
 import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.utils.SessionRisk
 import timber.log.Timber
 import java.io.File
 import java.util.Locale
@@ -332,6 +333,12 @@ object ThermalGuard {
 
         Handler(Looper.getMainLooper()).post {
             runCatching { SnackbarManager.show(message) }
+        }
+
+        // A snackbar is easy to miss behind a game surface. Heat is the one thing that can end the
+        // session without the app doing anything wrong, so it gets a dialog.
+        if (level == Level.CRITICAL) {
+            SessionRisk.raise(SessionRisk.Kind.HEAT, message)
         }
     }
 

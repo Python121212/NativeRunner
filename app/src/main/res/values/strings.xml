@@ -3540,4 +3540,12 @@
     <string name="storage_optimize_unsupported">Not supported on this device: %1$s</string>
     <string name="storage_optimize_nothing_to_do">Nothing could be shrunk.</string>
     <string name="storage_optimize_running_game">Close the running game first.</string>
+
+    <!-- Session risk dialog: heat and memory pressure while a game runs -->
+    <string name="session_risk_heat_title">The device is too hot</string>
+    <string name="session_risk_heat_body">Android may close this app or restart the device if it does not cool down.\n\n%1$s</string>
+    <string name="session_risk_memory_title">Not enough memory</string>
+    <string name="session_risk_memory_body">Android is trying to free memory and may close this app.\n\n%1$s</string>
+    <string name="session_risk_ack">Understood</string>
+    <string name="session_risk_ack_hint">Lower the graphics settings or stop for a while if this repeats.</string>
 </resources>
