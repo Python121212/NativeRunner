@@ -3502,4 +3502,12 @@
     <string name="storage_optimize_unsupported">この端末では未対応: %1$s</string>
     <string name="storage_optimize_nothing_to_do">削減できるものは見つかりませんでした。</string>
     <string name="storage_optimize_running_game">ゲームを終了してから実行してください。</string>
+
+    <!-- 実行中のリスク通知（発熱・メモリ不足） -->
+    <string name="session_risk_heat_title">端末が高温です</string>
+    <string name="session_risk_heat_body">冷えないと Android がこのアプリを終了したり、端末を再起動したりする可能性があります。\n\n%1$s</string>
+    <string name="session_risk_memory_title">メモリが不足しています</string>
+    <string name="session_risk_memory_body">Android がメモリを確保しようとしており、このアプリが終了する可能性があります。\n\n%1$s</string>
+    <string name="session_risk_ack">了解</string>
+    <string name="session_risk_ack_hint">くり返す場合は画質設定を下げるか、少し休ませてください。</string>
 </resources>

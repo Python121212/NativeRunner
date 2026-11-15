@@ -46,6 +46,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -162,6 +163,7 @@ import app.gamenative.ui.component.dialog.PreLaunchRiskDialog
 import app.gamenative.utils.GpuCompat
 import app.gamenative.utils.GpuCompatReport
 import app.gamenative.utils.LaunchRisk
+import app.gamenative.utils.SessionRisk
 import app.gamenative.utils.LaunchRiskAssessor
 import app.gamenative.utils.PreLaunchChoice
 import app.gamenative.utils.FexCodeCaches
@@ -3446,6 +3448,48 @@ fun XServerScreen(
             onChoice = { choice ->
                 preLaunchPrompt = null
                 prompt.answer.complete(choice)
+            },
+        )
+    }
+
+    val sessionRisk by SessionRisk.event.collectAsState()
+    sessionRisk?.let { risk ->
+        ThemedAlertDialog(
+            onDismissRequest = { SessionRisk.clear() },
+            title = {
+                Text(
+                    text = stringResource(
+                        when (risk.kind) {
+                            SessionRisk.Kind.HEAT -> R.string.session_risk_heat_title
+                            SessionRisk.Kind.MEMORY -> R.string.session_risk_memory_title
+                        },
+                    ),
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = stringResource(
+                            when (risk.kind) {
+                                SessionRisk.Kind.HEAT -> R.string.session_risk_heat_body
+                                SessionRisk.Kind.MEMORY -> R.string.session_risk_memory_body
+                            },
+                            risk.detail,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.session_risk_ack_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { SessionRisk.clear() }) {
+                    Text(text = stringResource(R.string.session_risk_ack))
+                }
             },
         )
     }

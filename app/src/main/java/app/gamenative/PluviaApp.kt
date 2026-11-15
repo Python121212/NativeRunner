@@ -1,5 +1,6 @@
 package app.gamenative
 
+import android.content.ComponentCallbacks2
 import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.StrictMode
@@ -27,6 +28,7 @@ import app.gamenative.utils.AppExitRecorder
 import app.gamenative.utils.ContainerMigrator
 import app.gamenative.utils.DebugReportUtils
 import app.gamenative.utils.PersistentLog
+import app.gamenative.utils.SessionRisk
 import app.gamenative.utils.DeviceInfo
 import app.gamenative.utils.IntentLaunchManager
 import app.gamenative.utils.PlayIntegrity
@@ -109,6 +111,22 @@ class PluviaApp : SplitCompatApplication() {
                 emptyList()
             }
         }
+
+        // Android says "I am about to kill you" before a low-memory kill; the user gets to know
+        // while the game is still running.
+        registerComponentCallbacks(object : ComponentCallbacks2 {
+            override fun onConfigurationChanged(newConfig: android.content.res.Configuration) = Unit
+            override fun onLowMemory() = Unit
+
+            override fun onTrimMemory(level: Int) {
+                if (level < ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) return
+                if (!PowerManager.isGameStarted) return
+                SessionRisk.raise(
+                    SessionRisk.Kind.MEMORY,
+                    "onTrimMemory($level): threshold ${if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) "critical" else "low"}",
+                )
+            }
+        })
 
         // Init our datastore preferences.
         PrefManager.init(this)
