@@ -1114,6 +1114,7 @@
     <string name="settings_accounts_signed_out">Oturum açık değil</string>
     <string name="settings_accounts_ea_title">EA hesabı</string>
     <string name="settings_accounts_rockstar_title">Rockstar hesabı</string>
+    <string name="settings_accounts_ubisoft_title">Ubisoft hesabı</string>
     <string name="gamenative_account_title">GameNative hesabı</string>
     <string name="gamenative_account_sign_in">Oturum aç</string>
     <string name="gamenative_account_sign_in_subtitle">Planınızı görmek ve aboneliğinizi yönetmek için oturum açın.</string>
@@ -1221,7 +1222,7 @@
     <string name="support_checkout_expired">Bu ödemenin süresi doldu. Ödemeyi yaptıysanız kullandığınız e-posta ile oturum açın, planınız görünür.</string>
     <string name="support_already_member">Zaten üye misiniz? Oturum açın</string>
     <string name="membership_plans_title">Üye olun</string>
-    <string name="membership_plans_pitch">Üyeler oyunları çalıştırmak için YZ yardımı, yeni sürümlere erken erişim ve Discord’da premium roller alır.</string>
+    <string name="membership_plans_pitch">Üyeler oyun tarzınızdan öğrenerek oyunlarınızın daha iyi çalışmasını sağlayan Optimize et, oyunlarınızı çalıştırmak için YZ yardımı ve derlemelere erken erişim alır.</string>
     <string name="support_already_subscribed">Bu hesabın zaten bir aboneliği var. Planınızı faturalama sayfasından değiştirebilirsiniz.</string>
     <string name="support_plan_active">Planınız etkin.</string>
     <string name="support_plan_pending">Planınız hâlâ hazırlanıyor. Lütfen bir dakika sonra tekrar deneyin.</string>
@@ -1591,8 +1592,8 @@
     <string name="main_recent_crash_title">Yakın zamandaki çökme</string>
     <string name="main_recent_crash_message">Bunun için üzgünüz!\nYaşadığınız son sorunu bilmek isteriz.\nEn son çökme günlüğünü uygulamanın ayarlarından görüntüleyip dışa aktarabilir ve projenin deposuna GitHub sorunu olarak ekleyebilirsiniz.\nGitHub deposunun bağlantısı da ayarlarda!</string>
     <string name="main_thank_you_title">GameNative’i beğeniyor musunuz?</string>
-    <string name="main_thank_you_message_play">Bugün üye olun. Üyeler şunları alır:\n\n• Oyunlarınızı çalıştırmak için YZ yardımı\n• Yeni sürümlere erken erişim\n• Discord’da premium roller ve özel kanallar\n• …ve daha fazlası\n\nAyda %1$s tutarından</string>
-    <string name="main_thank_you_message">Bugün üye olun. Üyeler şunları alır:\n\n• Oyunlarınızı çalıştırmak için YZ yardımı\n• Yeni sürümlere erken erişim\n• Discord’da premium roller ve özel kanallar\n• …ve daha fazlası\n\nAyda 5 $ tutarından</string>
+    <string name="main_thank_you_message_play">Bugün üye olun. Üyeler şunları alır:\n\n• Optimize et: oyunlar cihazınıza ve oyun tarzınıza göre ayarlanıp daha iyi çalışır\n• Oyunlarınızı çalıştırmak için YZ yardımı\n• Yeni derlemelere erken erişim\n• Discord’da premium roller ve özel kanallar\n• …ve daha fazlası\n\nAyda %1$s tutarından</string>
+    <string name="main_thank_you_message">Bugün üye olun. Üyeler şunları alır:\n\n• Optimize et: oyunlar cihazınıza ve oyun tarzınıza göre ayarlanıp daha iyi çalışır\n• Oyunlarınızı çalıştırmak için YZ yardımı\n• Yeni derlemelere erken erişim\n• Discord’da premium roller ve özel kanallar\n• …ve daha fazlası\n\nAyda 5 $ tutarından</string>
     <string name="main_join_kofi">Üye olun</string>
     <string name="pitch_session_title">%1$s hoşunuza gidiyor mu?</string>
     <string name="pitch_five_star_title">%1$s harika çalıştığına sevindik!</string>
@@ -1946,6 +1947,15 @@
     <string name="rockstar_preparing">Rockstar başlatıcı desteği hazırlanıyor</string>
     <string name="rockstar_runtime_installing">Social Club çalışma zamanı yükleniyor</string>
     <string name="rockstar_installer_missing">Social Club yükleyicisi oyun dosyalarında yok. Steam’de oyun dosyalarını doğrulayıp tekrar deneyin.</string>
+    <string name="ubisoft_preparing">Ubisoft Connect desteği hazırlanıyor</string>
+    <string name="ubisoft_runtime_installing">Ubisoft Connect dosyaları Ubisoft\'tan alınıyor</string>
+    <string name="ubisoft_login_required_title">Ubisoft girişi gerekli</string>
+    <string name="ubisoft_login_failed">Ubisoft girişi başarısız: %1$s</string>
+    <string name="ubisoft_error_title">Ubisoft Connect</string>
+    <string name="ubisoft_error_session">Ubisoft girişi kabul etmedi. Ayarlar\'dan Ubisoft oturumunu kapatıp yeniden giriş yap.</string>
+    <string name="ubisoft_error_not_owned">Bu Ubisoft hesabında oyun yok ve Steam kopyası hesaba eklenemedi.</string>
+    <string name="ubisoft_error_activation">Ubisoft bu oyunu etkinleştirmeyi reddetti.</string>
+    <string name="ubisoft_error_generic">Ubisoft Connect desteği %1$d hatasıyla durdu.</string>
     <string name="gog_login_cancel">İptal</string>
     <string name="gog_settings_logout_title">GOG oturumunu kapat</string>
     <string name="gog_settings_logout_subtitle">GOG hesabınızın oturumunu kapatın</string>

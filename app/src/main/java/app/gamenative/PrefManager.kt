@@ -2074,17 +2074,6 @@ object PrefManager {
         get() = getPref(POWER_CONTROL_DEFAULT_ENABLED, DeviceGate.isDeviceSupported())
         set(value) { setPref(POWER_CONTROL_DEFAULT_ENABLED, value) }
 
-    private val THERMAL_GUARD_ENABLED = booleanPreferencesKey("thermal_guard_enabled")
-
-    /**
-     * Heat budget: cap the frame rate while the device runs hot (see
-     * [app.gamenative.powercontrol.ThermalGuard]). On by default: a fanless phone renders Wine
-     * titles far above the clocks it can cool, and the cap is released as soon as it cools down.
-     */
-    var thermalGuardEnabled: Boolean
-        get() = getPref(THERMAL_GUARD_ENABLED, true)
-        set(value) { setPref(THERMAL_GUARD_ENABLED, value) }
-
     private val SHARED_SHADER_CACHE = booleanPreferencesKey("shared_shader_cache")
     var sharedShaderCache: Boolean
         get() = getPref(SHARED_SHADER_CACHE, true)

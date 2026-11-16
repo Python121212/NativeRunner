@@ -127,7 +127,6 @@ object SessionReport {
         "startupSelection", "language", "profileId", "selected_menu_item_id", "discord_support_prompt_shown",
         "ai_debug_offer_last_shown", "app_id", "game_source", "workshopModPath",
         "sharpnessLevel", "sharpnessEffect", "sharpnessDenoise", "configAppliedTs", "configAppliedAppVersion",
-        "dxvkInstallFailed",
     )
 
     private fun isIgnoredExtra(key: String) = key in CONFIG_DIFF_IGNORED_EXTRA || key.startsWith("screenEffects")

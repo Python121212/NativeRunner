@@ -214,7 +214,6 @@ object PowerManager {
         }
 
         appContext.let { PerformanceMetricsCollector.start(it) }
-        ThermalGuard.start(appContext, tunerLogDirectory())
 
         isGameStarted = true
         if (gamescopeSession) {
@@ -323,9 +322,6 @@ object PowerManager {
         saveProfile()
         AdaptiveFpsCapController.stop()
         PerformanceMetricsCollector.stop()
-        ThermalGuard.stop(restoreCap = false)
-        thermalFpsCeiling = 0
-        thermalRestoreFps = -1
         stopPowerControl()
         isGameStarted = false
         fpsCapApplier = null
@@ -349,7 +345,6 @@ object PowerManager {
         saveProfile()
         AdaptiveFpsCapController.pause()
         PerformanceMetricsCollector.pause()
-        ThermalGuard.pause()
         stopPowerControl()
     }
 
@@ -371,7 +366,6 @@ object PowerManager {
             AdaptiveFpsCapController.start(containerDir, tunerLogDirectory())
         }
         PerformanceMetricsCollector.resume()
-        ThermalGuard.resume()
     }
 
     /**
@@ -542,64 +536,6 @@ object PowerManager {
      *  generation runs, 1 otherwise) so frame stats stay in base units. */
     @Volatile
     var frameSampleStride: Int = 1
-
-    /**
-     * FPS ceiling the heat budget currently allows (see [ThermalGuard]); 0 means none.
-     * Published for diagnostics - the guard applies it through [applyThermalCeiling] so the
-     * adaptive controller and the engines never disagree about the running cap.
-     */
-    @Volatile
-    var thermalFpsCeiling: Int = 0
-        private set
-
-    /** The cap the engines ran at before the heat budget took over; -1 when it holds none. */
-    @Volatile
-    private var thermalRestoreFps: Int = -1
-
-    /**
-     * Applies (or with [ceiling] 0 releases) the FPS ceiling the device's temperature allows.
-     *
-     * While a ceiling is held the adaptive cap is paused, because two owners of the frame
-     * limiter would fight: the controller re-applies its own ladder every second and would
-     * undo the ceiling. Releasing it restores the user's cap and, when the profile still asks
-     * for it, restarts the adaptive cap.
-     */
-    @Synchronized
-    fun applyThermalCeiling(ceiling: Int) {
-        val wanted = ceiling.coerceAtLeast(0)
-        thermalFpsCeiling = wanted
-
-        if (wanted > 0) {
-            if (thermalRestoreFps < 0) thermalRestoreFps = targetFps
-            if (AdaptiveFpsCapController.isRunning()) AdaptiveFpsCapController.pause()
-
-            val userCap = thermalRestoreFps
-            val effective = if (userCap in 1 until wanted) userCap else wanted
-            val previousCap = targetFps
-            val applied = applyFpsCapToEngines(effective)
-            Timber.tag("PowerManager").i(
-                "Thermal ceiling %d: cap %d -> %d (user=%s applied=%b)",
-                wanted,
-                previousCap,
-                effective,
-                if (userCap == 0) "unlimited" else userCap.toString(),
-                applied,
-            )
-            return
-        }
-
-        if (thermalRestoreFps < 0) return
-
-        val restore = thermalRestoreFps
-        thermalRestoreFps = -1
-        applyFpsCapToEngines(restore)
-        Timber.tag("PowerManager").i("Thermal ceiling released: cap restored to %d", restore)
-
-        val wantsAdaptive = runCatching { currentProfile.adaptiveFpsCapEnabled }.getOrDefault(false)
-        if (wantsAdaptive && !AdaptiveFpsCapController.isRunning()) {
-            AdaptiveFpsCapController.start(containerDir, tunerLogDirectory())
-        }
-    }
 
     internal fun applyFpsCapToEngines(limitFps: Int): Boolean {
         fpsCapApplier?.let { if (it(limitFps)) return true }

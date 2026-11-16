@@ -46,7 +46,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -128,6 +127,8 @@ import app.gamenative.service.ea.EaLaunchSupport
 import app.gamenative.service.epic.EpicConstants
 import app.gamenative.service.rockstar.RockstarHelperDeployment
 import app.gamenative.service.rockstar.RockstarLaunchSupport
+import app.gamenative.service.ubisoft.UbisoftHelperDeployment
+import app.gamenative.service.ubisoft.UbisoftLaunchSupport
 import app.gamenative.service.epic.EpicOverlayManager
 import app.gamenative.service.epic.EpicService
 import app.gamenative.service.gog.GOGService
@@ -155,22 +156,9 @@ import app.gamenative.utils.CustomGameScanner
 import app.gamenative.utils.DebugReportUtils
 import app.gamenative.utils.GameSessionId
 import app.gamenative.utils.GuestOutputTail
-import app.gamenative.utils.StaleSessionProcesses
 import app.gamenative.utils.DebugRunParams
 import app.gamenative.utils.DebugRunParamsHolder
 import app.gamenative.utils.ExecutableSelectionUtils
-import app.gamenative.ui.component.dialog.PreLaunchRiskDialog
-import app.gamenative.utils.GpuCompat
-import app.gamenative.utils.GpuCompatReport
-import app.gamenative.utils.ManifestInstaller
-import app.gamenative.utils.MemoryBudget
-import app.gamenative.utils.ExtraComponents
-import app.gamenative.utils.ManifestEntry
-import app.gamenative.utils.LaunchRisk
-import app.gamenative.utils.DXVK_INSTALL_FAILED_EXTRA
-import app.gamenative.utils.SessionRisk
-import app.gamenative.utils.LaunchRiskAssessor
-import app.gamenative.utils.PreLaunchChoice
 import app.gamenative.utils.FexCodeCaches
 import app.gamenative.utils.FexCodeMaps
 import app.gamenative.utils.LsfgQuickMenuHelper
@@ -300,8 +288,6 @@ import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import java.util.Arrays
 import java.util.Locale
 import kotlin.math.ceil
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import java.util.concurrent.atomic.AtomicInteger
@@ -514,10 +500,27 @@ private val REAL_STEAM_PROCESSES = setOf(
     "steamhost32",
     "steamhost64",
     "eastub",
+    "upc",
+    "ubisoftgamelauncher",
+    "ubisoftgamelauncher64",
+    "conhost",
 )
 
 private var realSteamGameExecutable = ""
 private var realSteamRockstarDirectory: File? = null
+private var realSteamUbisoftDirectory: File? = null
+
+/** The launch entry's working directory for the stub, when that entry is the exe being launched. */
+private fun ubisoftWorkDir(launchInfo: LaunchInfo?, exePath: String, gameRootWindows: String): String? {
+    if (launchInfo == null) return null
+    val dir = launchInfo.workingDir.trim('/', '\\').takeIf { it.isNotEmpty() } ?: return null
+    val same = launchInfo.executable.replace('\\', '/').trim('/').equals(exePath.replace('\\', '/').trim('/'), ignoreCase = true)
+    return if (same) "$gameRootWindows\\" + dir.replace('/', '\\') else null
+}
+
+/** Bionic Steam starts the stand-in only when preLaunchApp staged its stub. */
+private fun usesUbisoftStandIn(appDir: File): Boolean =
+    UbisoftLaunchSupport.isUbisoftTitle(appDir) && UbisoftHelperDeployment.isDeployed(appDir)
 
 private fun buildEssentialProcessAllowlist(realSteam: Boolean): Set<String> {
     val essentialServices = WineUtils.getEssentialServiceNames()
@@ -693,10 +696,6 @@ fun XServerScreen(
     var isKeyboardVisible = false
     // Snapshot of element positions before entering edit mode (for cancel behavior)
     var showPlayingBlockedDialog by rememberSaveable { mutableStateOf(false) }
-    // Set by the setup thread: what it had to change in the container to match this GPU, and the
-    // risks it wants confirmed before the session starts. Nothing here forbids a launch.
-    var gpuRepairMessage by remember { mutableStateOf<String?>(null) }
-    var preLaunchPrompt by remember { mutableStateOf<PreLaunchPrompt?>(null) }
     var playingBlockedRemoteName by rememberSaveable { mutableStateOf<String?>(null) }
     fun shouldShowMouseCursor(): Boolean {
         return !container.isDisableMouseInput &&
@@ -1074,7 +1073,9 @@ fun XServerScreen(
     fun startExitWatchForUnmappedGameWindow(window: Window) {
         val winHandler = ui.xServerView?.getxServer()?.winHandler ?: return
         if (ui.exitWatchJob?.isActive == true) return
+        // The launch exe may be a patcher that exits early; the stub names the game it is following.
         val rockstarExecutable = realSteamRockstarDirectory?.let(RockstarHelperDeployment::gameExecutable)
+            ?: realSteamUbisoftDirectory?.let(UbisoftHelperDeployment::gameExecutable)
         val targetExecutable = extractExecutableBasename(
             rockstarExecutable ?: if (container.isLaunchRealSteam && realSteamGameExecutable.isNotEmpty()) realSteamGameExecutable else container.executablePath,
         )
@@ -2460,9 +2461,6 @@ fun XServerScreen(
                     }
 
                     setupExecutor.submit {
-                        // Set when the GPU guard refuses the launch, so the catch below reports that
-                        // reason instead of the generic "Failed to setup wine".
-                        var blockedByGpuGuard: String? = null
                         try {
                             val containerManager = ContainerManager(context)
                             // Configure WinHandler with container's input API settings
@@ -2572,38 +2570,6 @@ fun XServerScreen(
                             extractArm64ecInputDLLs(context, container) // REQUIRED: Uses updated xinput1_3 main.c from x86_64 build, prevents crashes with 3+ players, avoids need for input shim dlls.
                             extractx86_64InputDlls(context, container)
 
-                            // Recipes written for another GPU leave env vars behind that break the
-                            // display here (an image count of 0, a pinned present mode). They are
-                            // dropped before anything reads the container, so the launch and the
-                            // pre-launch dialog both see the cleaned values.
-                            GpuCompat.sanitizeEnvForDevice(container, GpuCompat.detectFamily(context))
-
-                            // This GPU may not be able to run the chosen driver, the device may be
-                            // short of memory, or it may already be too hot. Nothing is forbidden -
-                            // the user picks - but a session that ends in a reboot or a kill is
-                            // worth one confirmation first.
-                            val gpuReport = GpuCompat.evaluateContainer(context, container)
-                            val risks = LaunchRiskAssessor.assess(context, container, gpuReport)
-                            val canRepair = GpuCompat.canRepair(
-                                container,
-                                gpuReport,
-                                MemoryBudget.vramBudgetMb(context),
-                            )
-                            if (risks.isNotEmpty()) {
-                                val choice = promptForLaunchRisks(risks, canRepair) {
-                                    Handler(Looper.getMainLooper()).post { preLaunchPrompt = it }
-                                }
-                                if (choice == PreLaunchChoice.ABORT) {
-                                    blockedByGpuGuard = context.getString(R.string.launch_risk_aborted)
-                                    throw IllegalStateException("Launch cancelled at the pre-launch prompt")
-                                }
-                                if (choice == PreLaunchChoice.REPAIR) {
-                                    applyGpuRepairs(context, container, gpuReport, xServerState) { notice ->
-                                        Handler(Looper.getMainLooper()).post { gpuRepairMessage = notice }
-                                    }
-                                }
-                            }
-
                             runBlocking {
                                 extractGraphicsDriverFiles(
                                     context,
@@ -2709,12 +2675,7 @@ fun XServerScreen(
                                 Timber.e(cleanupEx, "Error cleaning up environment after setup failure")
                             }
                             PluviaApp.xEnvironment = null
-                            val blockMessage = blockedByGpuGuard
-                            if (blockMessage != null) {
-                                onGameLaunchError?.invoke(blockMessage)
-                            } else if (!launchCancel.get()) {
-                                onGameLaunchError?.invoke("Failed to setup wine: ${e.message}")
-                            }
+                            if (!launchCancel.get()) onGameLaunchError?.invoke("Failed to setup wine: ${e.message}")
                         } finally {
                             setupExecutor.shutdown()
                         }
@@ -3451,74 +3412,6 @@ fun XServerScreen(
                 container.saveData()
                 PluviaApp.inputControlsView?.setShooterModeConfig(newConfig)
                 ui.showShooterModeDialog = false
-            },
-        )
-    }
-
-    val prompt = preLaunchPrompt
-    if (prompt != null) {
-        PreLaunchRiskDialog(
-            risks = prompt.risks,
-            canRepair = prompt.canRepair,
-            onChoice = { choice ->
-                preLaunchPrompt = null
-                prompt.answer.complete(choice)
-            },
-        )
-    }
-
-    val sessionRisk by SessionRisk.event.collectAsState()
-    sessionRisk?.let { risk ->
-        ThemedAlertDialog(
-            onDismissRequest = { SessionRisk.clear() },
-            title = {
-                Text(
-                    text = stringResource(
-                        when (risk.kind) {
-                            SessionRisk.Kind.HEAT -> R.string.session_risk_heat_title
-                            SessionRisk.Kind.MEMORY -> R.string.session_risk_memory_title
-                        },
-                    ),
-                )
-            },
-            text = {
-                Column {
-                    Text(
-                        text = stringResource(
-                            when (risk.kind) {
-                                SessionRisk.Kind.HEAT -> R.string.session_risk_heat_body
-                                SessionRisk.Kind.MEMORY -> R.string.session_risk_memory_body
-                            },
-                            risk.detail,
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.session_risk_ack_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { SessionRisk.clear() }) {
-                    Text(text = stringResource(R.string.session_risk_ack))
-                }
-            },
-        )
-    }
-
-    val repairedGpuMessage = gpuRepairMessage
-    if (repairedGpuMessage != null) {
-        ThemedAlertDialog(
-            onDismissRequest = { gpuRepairMessage = null },
-            title = { Text(text = stringResource(R.string.gpu_compat_repaired_title)) },
-            text = { Text(text = repairedGpuMessage) },
-            confirmButton = {
-                TextButton(onClick = { gpuRepairMessage = null }) {
-                    Text(text = stringResource(R.string.ok))
-                }
             },
         )
     }
@@ -4611,11 +4504,6 @@ private fun setupXEnvironment(
     val rootPath = imageFs.getRootDir().getPath()
     FileUtils.clear(imageFs.getTmpDir())
 
-    // Helpers from a previous session (box64/FEX, wine, proot, gamescope/Xwayland, pulse) hold the
-    // GPU/audio nodes, the shared memory and the tmp-dir sockets. Purge them before this environment
-    // binds to those resources so the launch starts from a clean slate.
-    StaleSessionProcesses.purge(imageFs.getRootDir())
-
     val usrGlibc: Boolean = container.getContainerVariant().equals(Container.GLIBC, ignoreCase = true)
     val guestProgramLauncherComponent = if (usrGlibc) {
         Timber.i("Setting guestProgramLauncherComponent to GlibcProgramLauncherComponent")
@@ -5088,6 +4976,7 @@ private fun getWineStartCommand(
     offline: Boolean
 ): String {
     realSteamRockstarDirectory = null
+    realSteamUbisoftDirectory = null
     val tempDir = File(container.getRootDir(), ".wine/drive_c/windows/temp")
     FileUtils.clear(tempDir)
 
@@ -5475,14 +5364,34 @@ private fun getWineStartCommand(
             // and will monitor the game via nativeWaitAppExit.
             val appDirPath = SteamService.getAppDirPath(gameId)
             val isRockstar = RockstarLaunchSupport.isRockstarTitle(File(appDirPath))
-            val exePath = if (isRockstar) RockstarHelperDeployment.executable(File(appDirPath)) else container.executablePath.ifEmpty { SteamService.getInstalledExe(gameId) }
+            val isUbisoft = usesUbisoftStandIn(File(appDirPath))
+            val originalExe by lazy { container.executablePath.ifEmpty { SteamService.getInstalledExe(gameId) } }
+            val exePath = when {
+                isRockstar -> RockstarHelperDeployment.executable(File(appDirPath))
+                isUbisoft -> UbisoftHelperDeployment.EXECUTABLE
+                else -> originalExe
+            }
             realSteamRockstarDirectory = if (isRockstar) File(appDirPath) else null
+            realSteamUbisoftDirectory = if (isUbisoft) File(appDirPath) else null
+            // The prefix pattern can be unpacked after the pre-launch step and replaces the registry files.
+            if (isUbisoft) UbisoftLaunchSupport.writeRegistry(container, File(appDirPath), UbisoftLaunchSupport.productId(context, gameId))
             val normalizedExe = exePath.replace('/', '\\').trimStart('\\')
-            val executableDir = appDirPath + "/" + exePath.substringBeforeLast("/", "")
+            // The stub starts the original exe itself, from that exe's folder.
+            val workExe = if (isUbisoft) originalExe else exePath
+            val executableDir = appDirPath + "/" + workExe.substringBeforeLast("/", "")
             guestProgramLauncherComponent.workingDir = File(executableDir)
             Timber.i("Bionic-Steam working directory is $executableDir")
             val gameFolderName = appDirPath.substringAfterLast('/').ifEmpty { gameId.toString() }
-            "\"C:\\\\Program Files (x86)\\\\Steam\\\\steamapps\\\\common\\\\$gameFolderName\\\\$normalizedExe\""
+            val stubArgs = if (isUbisoft) {
+                val gameRoot = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\$gameFolderName"
+                val original = "$gameRoot\\" + originalExe.replace('/', '\\').trimStart('\\')
+                val originalArgs = SteamUtils.launchConfigArguments(appLaunchInfo, originalExe)
+                " " + UbisoftHelperDeployment.stubArguments(original, originalArgs, ubisoftWorkDir(appLaunchInfo, originalExe, gameRoot))
+                    .replace("\\", "\\\\")
+            } else {
+                ""
+            }
+            "\"C:\\\\Program Files (x86)\\\\Steam\\\\steamapps\\\\common\\\\$gameFolderName\\\\$normalizedExe\"" + stubArgs
         } else if (container.isLaunchRealSteam && !container.isLaunchHeadlessSteam) {
             // Valve GUI client boots and starts the game itself
             "\"C:\\\\Program Files (x86)\\\\Steam\\\\steam.exe\" -silent -vgui -tcp " +
@@ -5495,6 +5404,10 @@ private fun getWineStartCommand(
             val isEaLaunch = EaLaunchSupport.isEaTitle(gameId, File(appDirPath))
             val isRockstar = RockstarLaunchSupport.isRockstarTitle(File(appDirPath))
             realSteamRockstarDirectory = if (isRockstar) File(appDirPath) else null
+            // The prefix pattern can be unpacked after the pre-launch step and replaces the registry files.
+            if (!isEaLaunch && UbisoftLaunchSupport.isUbisoftTitle(File(appDirPath))) {
+                UbisoftLaunchSupport.writeRegistry(container, File(appDirPath), UbisoftLaunchSupport.productId(context, gameId))
+            }
             val launchExe = if (isEaLaunch) "" else appLaunchInfo?.executable?.trim('/').orEmpty()
             val exePath = if (isRockstar) RockstarHelperDeployment.executable(File(appDirPath)) else container.executablePath.ifEmpty { launchExe.ifEmpty { SteamService.getInstalledExe(gameId) } }
             val launchArgs = SteamUtils.launchConfigArguments(appLaunchInfo?.takeUnless { isEaLaunch }, exePath)
@@ -6400,12 +6313,12 @@ private suspend fun extractDXWrapperComponent(
     componentId: String,
     windowsDir: File,
     onExtractFileListener: OnExtractFileListener?
-): Boolean {
+) {
     val componentFile = DXWrapperDownloader.ensureDXWrapperAvailable(context, componentId) { progress ->
         Timber.d("Downloading dxwrapper $componentId: ${(progress * 100).toInt()}%")
     }
 
-    val extracted = if (componentFile == null) {
+    if (componentFile == null) {
         // Legacy variant: use bundled asset
         Timber.d("Extracting dxwrapper $componentId from bundled assets")
         SharedComponents.extractAndLink(
@@ -6420,57 +6333,7 @@ private suspend fun extractDXWrapperComponent(
             componentFile, windowsDir, onExtractFileListener,
         )
     }
-    if (!extracted) {
-        Timber.e("dxwrapper $componentId could not be extracted (not bundled, not downloaded)")
-    }
-    return extracted
 }
-
-/**
- * Installs an arm64ec DXVK build from [ExtraComponents] as a content profile, so the launch after
- * this one finds it in the normal install list. Returns null for anything that is not one of those
- * builds or when the download fails, in which case the caller keeps Wine's own DLLs.
- */
-private suspend fun installArm64ecDxWrapper(
-    context: Context,
-    dxwrapper: String,
-): ContentProfile? {
-    val entry = ExtraComponents.find(dxwrapper.substringAfter("dxvk-", "").ifEmpty { dxwrapper })
-        ?: return null
-    Timber.i("Installing arm64ec DXVK %s from %s", entry.id, entry.url)
-    return try {
-        val result = ManifestInstaller.installManifestEntry(
-            context = context,
-            entry = ManifestEntry(entry.id, entry.name, entry.url, entry.variant, entry.arch),
-            isDriver = false,
-            contentType = ExtraComponents.contentTypeOf(entry),
-        ) { progress ->
-            Timber.d("Downloading arm64ec DXVK ${entry.id}: ${(progress * 100).toInt()}%")
-        }
-        if (!result.success) {
-            Timber.e("arm64ec DXVK %s could not be installed: %s", entry.id, result.message)
-            return null
-        }
-        ContentsManager(context).getProfileByEntryName("dxvk-${entry.id}")
-    } catch (e: Exception) {
-        Timber.e(e, "arm64ec DXVK %s could not be installed", entry.id)
-        null
-    }
-}
-
-/** The DLLs a DXVK/D8VK install replaces, and the ones a failed install has to put back. */
-private val dxvkDlls = arrayOf(
-    "d3d10.dll",
-    "d3d10_1.dll",
-    "d3d10core.dll",
-    "d3d11.dll",
-    "d3d12.dll",
-    "d3d12core.dll",
-    "d3d8.dll",
-    "d3d9.dll",
-    "dxgi.dll",
-    "ddraw.dll",
-)
 
 private suspend fun extractDXWrapperFiles(
     context: Context,
@@ -6482,7 +6345,18 @@ private suspend fun extractDXWrapperFiles(
     contentsManager: ContentsManager,
     onExtractFileListener: OnExtractFileListener?,
 ) {
-    val dlls = dxvkDlls
+    val dlls = arrayOf(
+        "d3d10.dll",
+        "d3d10_1.dll",
+        "d3d10core.dll",
+        "d3d11.dll",
+        "d3d12.dll",
+        "d3d12core.dll",
+        "d3d8.dll",
+        "d3d9.dll",
+        "dxgi.dll",
+        "ddraw.dll",
+    )
     val splitDxWrapper = if (dxwrapper == "cnc-ddraw" || dxwrapper.startsWith("cnc-ddraw-")) {
         "cnc-ddraw"
     } else {
@@ -6537,40 +6411,17 @@ private suspend fun extractDXWrapperFiles(
             }
         }
         else -> {
-            var profile: ContentProfile? = contentsManager.getProfileByEntryName(dxwrapper)
+            val profile: ContentProfile? = contentsManager.getProfileByEntryName(dxwrapper)
             // This block handles dxvk-VERSION strings
             Timber.i("Extracting DXVK/D8VK DLLs for dxwrapper: $dxwrapper")
             restoreOriginalDllFiles(context, container, containerManager, imageFs, "d3d12.dll", "d3d12core.dll", "ddraw.dll")
-            if (profile == null) {
-                // An arm64ec DXVK lives in the extra component list rather than in the bundled
-                // assets; fetch and install it the first time it is used.
-                profile = installArm64ecDxWrapper(context, dxwrapper)
-            }
-            var installed = false
             if (profile != null) {
                 Timber.d("Applying user-defined DXVK content profile: " + dxwrapper)
                 contentsManager.applyContent(profile);
-                installed = true
             } else {
-                installed = extractDXWrapperComponent(context, dxwrapper, windowsDir, onExtractFileListener)
+                extractDXWrapperComponent(context, dxwrapper, windowsDir, onExtractFileListener)
             }
             extractDXWrapperComponent(context, "d8vk-${DefaultVersion.D8VK}", windowsDir, onExtractFileListener)
-
-            // A failed install used to leave the previous DXVK in system32, so the game started
-            // against DLLs this Wine cannot drive and died inside CreateDevice with an engine error
-            // that says nothing about DXVK. Put Wine's own DLLs back and remember the failure so
-            // the next launch can say so before the session starts.
-            if (installed) {
-                if (container.getExtra(DXVK_INSTALL_FAILED_EXTRA).isNotEmpty()) {
-                    container.putExtra(DXVK_INSTALL_FAILED_EXTRA, "")
-                    container.saveData()
-                }
-            } else {
-                Timber.e("DXVK %s is not installed; restoring the DLLs the prefix shipped with", dxwrapper)
-                restoreOriginalDllFiles(context, container, containerManager, imageFs, *dxvkDlls)
-                container.putExtra(DXVK_INSTALL_FAILED_EXTRA, dxwrapper)
-                container.saveData()
-            }
         }
     }
 }
@@ -7312,64 +7163,4 @@ private fun setImagefsContainerVariant(context: Context, container: Container) {
     val imageFs = ImageFs.find(context)
     val containerVariant = container.containerVariant
     imageFs.createVariantFile(containerVariant)
-}
-
-/** A pending pre-launch confirmation: the risks found and where the answer goes. */
-private data class PreLaunchPrompt(
-    val risks: List<LaunchRisk>,
-    val canRepair: Boolean,
-    val answer: CompletableFuture<PreLaunchChoice>,
-)
-
-private const val PRE_LAUNCH_PROMPT_TIMEOUT_SECONDS = 180L
-
-/**
- * Shows the pre-launch dialog on the main thread and waits for the answer on the setup thread.
- * No answer (the screen went away) is treated as a cancellation rather than a launch.
- */
-private fun promptForLaunchRisks(
-    risks: List<LaunchRisk>,
-    canRepair: Boolean,
-    show: (PreLaunchPrompt?) -> Unit,
-): PreLaunchChoice {
-    val answer = CompletableFuture<PreLaunchChoice>()
-    show(PreLaunchPrompt(risks, canRepair, answer))
-    return try {
-        answer.get(PRE_LAUNCH_PROMPT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-    } catch (e: Exception) {
-        Timber.tag("LaunchRisk").w(e, "No answer to the pre-launch prompt")
-        PreLaunchChoice.ABORT
-    } finally {
-        show(null)
-    }
-}
-
-/**
- * Applies the driver repairs the user accepted and keeps [xServerState] in step: the launch reads
- * the driver from there, so a repaired container would otherwise still extract the old driver.
- */
-private fun applyGpuRepairs(
-    context: Context,
-    container: Container,
-    report: GpuCompatReport,
-    xServerState: androidx.compose.runtime.MutableState<app.gamenative.ui.data.XServerState>,
-    notify: (String) -> Unit,
-) {
-    val repairs = GpuCompat.repairContainer(container, report, MemoryBudget.vramBudgetMb(context))
-    if (repairs.isEmpty()) return
-
-    container.saveData()
-    // The launch reads the wrapper and the driver config from xServerState, not from the
-    // container, so a repaired dxwrapper would otherwise still extract the old DLLs.
-    val repairedWrapper = container.dxWrapper.orEmpty().let { wrapper ->
-        if (wrapper == "dxvk") "dxvk-" + DXVKHelper.parseConfig(container.dxWrapperConfig).get("version") else wrapper
-    }
-    xServerState.value = xServerState.value.copy(
-        graphicsDriver = container.graphicsDriver,
-        graphicsDriverVersion = container.graphicsDriverVersion,
-        dxwrapper = repairedWrapper,
-        dxwrapperConfig = DXVKHelper.parseConfig(container.dxWrapperConfig),
-    )
-    Timber.tag("GpuCompat").i("Adjusted the container: %s", repairs)
-    notify(context.getString(R.string.gpu_compat_repaired, repairs.joinToString(", ")))
 }

@@ -14,26 +14,7 @@ object ManifestRepository {
     private const val MANIFEST_URL = "https://raw.githubusercontent.com/utkarshdalal/GameNative/refs/heads/master/manifest.json"
     private val json = Json { ignoreUnknownKeys = true }
 
-    /**
-     * Everything upstream lists plus the components this build adds locally (see
-     * [ExtraComponents]): the manifest URL is not ours to change, but the app still has to be able
-     * to offer an arm64ec DXVK to an arm64ec container.
-     */
-    suspend fun loadManifest(context: Context): ManifestData = withLocalExtras(loadRemoteManifest(context))
-
-    private fun withLocalExtras(data: ManifestData): ManifestData {
-        val additions = ExtraComponents.manifestAdditions()
-        if (additions.isEmpty()) return data
-        val items = data.items.toMutableMap()
-        additions.forEach { (type, entries) ->
-            val known = items[type].orEmpty().map { it.id }.toSet()
-            val missing = entries.filterNot { it.id in known }
-            if (missing.isNotEmpty()) items[type] = items[type].orEmpty() + missing
-        }
-        return data.copy(items = items)
-    }
-
-    private suspend fun loadRemoteManifest(context: Context): ManifestData {
+    suspend fun loadManifest(context: Context): ManifestData {
         if (BuildConfig.DEBUG) {
             readLocalManifest(context)?.let {
                 Timber.i("ManifestRepository: using local debug manifest")

@@ -1,6 +1,5 @@
 package app.gamenative
 
-import android.content.ComponentCallbacks2
 import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.StrictMode
@@ -27,9 +26,6 @@ import app.gamenative.ui.screen.xserver.RadialMenuCoordinator
 import app.gamenative.utils.AppExitRecorder
 import app.gamenative.utils.ContainerMigrator
 import app.gamenative.utils.DebugReportUtils
-import app.gamenative.utils.MemoryReclaimer
-import app.gamenative.utils.PersistentLog
-import app.gamenative.utils.SessionRisk
 import app.gamenative.utils.DeviceInfo
 import app.gamenative.utils.IntentLaunchManager
 import app.gamenative.utils.PlayIntegrity
@@ -92,11 +88,6 @@ class PluviaApp : SplitCompatApplication() {
             Timber.plant(ReleaseTree())
         }
 
-        // Lines are written and flushed as they happen: this file is the only trail that survives
-        // a native crash, a low-memory kill or a device reboot. Installed before anything else so
-        // the startup path is covered too.
-        PersistentLog.install(this)
-
         NetworkMonitor.init(this)
 
         // Init our custom crash handler.
@@ -112,26 +103,6 @@ class PluviaApp : SplitCompatApplication() {
                 emptyList()
             }
         }
-
-        // Android says "I am about to kill you" before a low-memory kill; the user gets to know
-        // while the game is still running.
-        registerComponentCallbacks(object : ComponentCallbacks2 {
-            override fun onConfigurationChanged(newConfig: android.content.res.Configuration) = Unit
-            override fun onLowMemory() = Unit
-
-            override fun onTrimMemory(level: Int) {
-                if (level < ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) return
-                if (!PowerManager.isGameStarted) return
-                // Give back what this app can regenerate before asking the user to act.
-                val freedMb = MemoryReclaimer.reclaim(this@PluviaApp) / 1_048_576
-                SessionRisk.raise(
-                    SessionRisk.Kind.MEMORY,
-                    "onTrimMemory($level): threshold " +
-                        (if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) "critical" else "low") +
-                        ", freed ${freedMb}MB",
-                )
-            }
-        })
 
         // Init our datastore preferences.
         PrefManager.init(this)

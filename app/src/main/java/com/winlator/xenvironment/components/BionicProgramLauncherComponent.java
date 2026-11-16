@@ -45,6 +45,7 @@ import com.winlator.core.ProcessHelper;
 import com.winlator.core.SharedComponents;
 import com.winlator.core.TarCompressorUtils;
 import com.winlator.core.WineInfo;
+import com.winlator.fexcore.FEXCoreManager;
 import com.winlator.fexcore.FEXCorePreset;
 import com.winlator.fexcore.FEXCorePresetManager;
 import com.winlator.sysvshm.SysVSHMConnectionHandler;
@@ -96,7 +97,11 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     }
 
     public Container getContainer() { return this.container; }
-    public void setContainer(Container container) { this.container = container; }
+    public void setContainer(Container container) {
+        this.container = container;
+        // A session that was killed leaves its file behind; helper commands run before the next write.
+        if (container != null) FEXCoreManager.deleteContainerConfig(container.getRootDir());
+    }
 
     // Resolve which libredirect shim to preload. Normally the flavor default
     // (PRELOAD_BIONIC_SO). When the container disables libredirect, modern falls
@@ -180,6 +185,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                 SteamService.setKeepAlive(false);
             }
             execShellCommand("wineserver -k");
+            if (container != null) FEXCoreManager.deleteContainerConfig(container.getRootDir());
         }
     }
 
@@ -294,39 +300,18 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         if (true) {
             envVars.put("EVSHIM_SHM_ID", 1);
         }
-        // Where evshim keeps the gamepad shared memory. Without it the shim falls back to
-        // /data/data/app.gamenative/files, which the container's mount namespace cannot reach, so
-        // every process logged "failed to create/check dir ... Permission denied" and the pad
-        // shared nothing. getFilesDir() is the same directory WinHandler maps, spelled the way the
-        // guest sees it (/data/user/<id>/...).
-        envVars.put("EVSHIM_BASE_PATH", context.getFilesDir().getAbsolutePath());
-        // Exactly one translator does the work per launch, so only that translator's
-        // environment layer is applied:
-        //   FEX  -> only reachable through an ARM64EC wine (libwow64fex.dll), single stage
-        //   box64 -> every other container (wowbox64.dll for ARM64EC, box64 itself otherwise)
-        // Applying both layers used to stack FEX_* on a box64 run and BOX64_* on a FEX run,
-        // which is the "two translation layers" cost visible at launch.
-        final boolean fexSelected = isFexCoreSelected();
-        final boolean fexActive = fexSelected && wineInfo.isArm64EC();
-        if (fexSelected && !fexActive) {
-            Log.w("LayerStack", "FEXCore is selected but this container's wine is not ARM64EC: "
-                    + "the guest is translated by box64 instead. Pick an ARM64EC wine for single-stage FEX.");
-        }
-
-        if (fexActive) {
-            envVars.putAll(FEXCorePresetManager.getEnvVars(context, fexcorePreset));
-        }
-        else {
-            addBox64EnvVars(envVars, enableBox86_64Logs);
-        }
+        addBox64EnvVars(envVars, enableBox86_64Logs);
+        EnvVars fexPreset = FEXCorePresetManager.getEnvVars(context, fexcorePreset);
+        boolean fexContainerConfig = wineInfo.isArm64EC() && container != null;
+        EnvVars fexConfig = fexContainerConfig ? FEXCoreManager.takeAppConfigOptions(fexPreset) : new EnvVars();
+        envVars.putAll(fexPreset);
 
         String renderer = GPUInformation.getRenderer(context);
 
         if (renderer.contains("Mali"))
             envVars.put("BOX64_MMAP32", "0");
 
-        // BOX64_MMAP32 / WRAPPER_DISABLE_PLACED only mean something to box64.
-        if (!fexActive && envVars.get("BOX64_MMAP32").equals("1") && !wineInfo.isArm64EC())
+        if (envVars.get("BOX64_MMAP32").equals("1") && !wineInfo.isArm64EC())
             envVars.put("WRAPPER_DISABLE_PLACED", "1");
 
         // Setting up essential environment variables for Wine
@@ -488,10 +473,18 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         // Code-map capture (input for offline code caches, uploaded after exit) is decided here, after
         // every preset and container variable has been merged, so nothing can override the gate.
+        envVars.remove("FEX_ENABLECODECACHINGWIP");
+        fexConfig.remove("FEX_ENABLECODECACHINGWIP");
         if (FexCodeMaps.captureEnabled(context, contentsManager, container)) {
-            envVars.put("FEX_ENABLECODECACHINGWIP", "1");
-        } else {
-            envVars.remove("FEX_ENABLECODECACHINGWIP");
+            (fexContainerConfig ? fexConfig : envVars).put("FEX_ENABLECODECACHINGWIP", "1");
+        }
+
+        // Through Config.json so the per-app files of the Steam client and launcher helpers override these options.
+        if (fexContainerConfig && !FEXCoreManager.writeContainerConfig(container.getRootDir(), fexConfig)) {
+            Log.e("BionicProgramLauncherComponent", "Could not write the FEX container config; passing it as environment variables");
+            for (String name : fexConfig) {
+                if (!envVars.has(name)) envVars.put(name, fexConfig.get(name));
+            }
         }
 
         if (BuildConfig.XR_BUILD) {
@@ -561,8 +554,6 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         if (box64File.exists()) {
             FileUtils.chmod(box64File, 0755);
         }
-
-        logLayerStack(emulator, fexSelected && wineInfo.isArm64EC(), renderer, command);
 
         return ProcessHelper.exec(command, envVars.toStringArray(), workingDir != null ? workingDir : rootDir, (status) -> {
             synchronized (lock) {
@@ -887,33 +878,6 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         containerDataChanged = true;
         if (containerDataChanged) container.saveData();
-    }
-
-    /** True when the container asks for the FEXCore translator (see Container.DEFAULT_EMULATOR). */
-    private boolean isFexCoreSelected() {
-        return container != null && "fexcore".equalsIgnoreCase(container.getEmulator());
-    }
-
-    /**
-     * Logs the layer stack that is actually active for this launch. One line per launch,
-     * so a device report shows whether the guest goes through one translation stage or two.
-     */
-    private void logLayerStack(String selectedEmulator, boolean fexActive, String renderer, String command) {
-        String translator;
-        if (fexActive)
-            translator = "fexcore(libwow64fex)";
-        else if (wineInfo.isArm64EC())
-            translator = "box64(wowbox64)";
-        else
-            translator = "box64(launcher)";
-        String prefix = command.startsWith("box64 ") || command.contains("/box64 ") ? "box64" : "wine";
-        Log.i("LayerStack", "translator=" + translator
-                + " selected=" + selectedEmulator
-                + " wineArch=" + (wineInfo.isArm64EC() ? "arm64ec" : "x86_64")
-                + " entry=" + prefix
-                + " wow64=" + (container != null && container.isWoW64Mode())
-                + " proot=off(bionic)"
-                + " renderer=" + renderer);
     }
 
     private void addBox64EnvVars(EnvVars envVars, boolean enableLogs) {

@@ -75,34 +75,6 @@ object ManifestInstaller {
         }
     }
 
-    /** How a downloaded component starts, so a wrong file can be named instead of guessed at. */
-    internal enum class ArchiveKind { ZSTD, XZ, ZIP, GZIP, HTML, UNKNOWN }
-
-    /**
-     * Reads the first bytes of [file] and reports the container format. HTML is called out because
-     * a redirect or a 404 page is the usual reason a release download is not what it claims to be.
-     */
-    internal fun archiveKind(file: File?): ArchiveKind {
-        if (file == null || !file.isFile) return ArchiveKind.UNKNOWN
-        val head = ByteArray(6)
-        val read = try {
-            file.inputStream().use { it.read(head) }
-        } catch (e: Exception) {
-            return ArchiveKind.UNKNOWN
-        }
-        if (read < 2) return ArchiveKind.UNKNOWN
-        val b = head.map { it.toInt() and 0xFF }
-        return when {
-            read >= 4 && b[0] == 0x28 && b[1] == 0xB5 && b[2] == 0x2F && b[3] == 0xFD -> ArchiveKind.ZSTD
-            read >= 6 && b[0] == 0xFD && b[1] == 0x37 && b[2] == 0x7A && b[3] == 0x58 &&
-                b[4] == 0x5A && b[5] == 0x00 -> ArchiveKind.XZ
-            read >= 4 && b[0] == 0x50 && b[1] == 0x4B && (b[2] == 0x03 || b[2] == 0x05) -> ArchiveKind.ZIP
-            read >= 2 && b[0] == 0x1F && b[1] == 0x8B -> ArchiveKind.GZIP
-            b[0] == '<'.code -> ArchiveKind.HTML
-            else -> ArchiveKind.UNKNOWN
-        }
-    }
-
     /**
      * dxvk/vkd3d distributed as raw .tzst archives have no ContentProfile; they are extracted
      * directly into the wine prefix at launch. "Installing" one just means caching the .tzst in
@@ -153,54 +125,22 @@ object ManifestInstaller {
         try {
             destFile = File(context.cacheDir, entry.url.substringAfterLast("/"))
             SteamService.fetchFile(entry.url, destFile, onProgress)
-
-            // A release asset URL that answers with a sign-in or error page still arrives as a
-            // "successful" download; saying so beats failing later inside the extractor, where it
-            // only shows up as "could not be installed".
-            val kind = archiveKind(destFile)
-            Timber.i(
-                "ManifestInstaller: %s downloaded (%d bytes, %s)",
-                entry.id,
-                destFile.length(),
-                kind,
-            )
-            if (kind == ArchiveKind.HTML) {
-                Timber.e("ManifestInstaller: %s is a web page, not an archive", entry.id)
-                return@withContext ManifestInstallResult(
-                    success = false,
-                    message = context.getString(R.string.manifest_download_not_an_archive),
-                )
-            }
-
             val uri = Uri.fromFile(destFile)
             val mgr = ContentsManager(context)
 
             val (profile, fail, error) = extractContent(mgr, uri)
             if (profile == null) {
-                val reason = fail?.name ?: error?.javaClass?.simpleName ?: "unknown"
-                Timber.e(
-                    error,
-                    "ManifestInstaller: %s could not be opened (%s, archive=%s)",
-                    entry.id,
-                    reason,
-                    kind,
-                )
                 return@withContext ManifestInstallResult(
                     success = false,
-                    message = context.getString(R.string.manifest_install_failed_reason, entry.name, reason),
+                    message = context.getString(R.string.manifest_install_failed, entry.name),
                 )
             }
 
             val installed = finishInstall(mgr, profile)
             if (!installed) {
-                Timber.e("ManifestInstaller: %s was read but not installed", entry.id)
                 return@withContext ManifestInstallResult(
                     success = false,
-                    message = context.getString(
-                        R.string.manifest_install_failed_reason,
-                        entry.name,
-                        "install",
-                    ),
+                    message = context.getString(R.string.manifest_install_failed, entry.name),
                 )
             }
 
