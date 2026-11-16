@@ -1,6 +1,7 @@
 package app.gamenative
 
 import android.content.Context
+import app.gamenative.utils.PersistentLog
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -91,6 +92,21 @@ class CrashHandler(
 
     override fun uncaughtException(thread: Thread, throwable: Throwable) {
         PrefManager.recentlyCrashed = true
+
+        // The same reason and stack go into the persistent log: a native crash or a kill leaves no
+        // chance to write the crash file, but the log lines before it are already on disk.
+        runCatching {
+            PersistentLog.write(
+                android.util.Log.ERROR,
+                "CrashHandler",
+                "uncaught: ${throwable.javaClass.name}: ${throwable.message}",
+            )
+            PersistentLog.write(
+                android.util.Log.ERROR,
+                "CrashHandler",
+                android.util.Log.getStackTraceString(throwable),
+            )
+        }
 
         saveCrashToFile(throwable)
         defaultHandler?.uncaughtException(thread, throwable)
