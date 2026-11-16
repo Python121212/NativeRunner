@@ -746,6 +746,12 @@
 
     <!-- Settings -->
     <string name="settings_save_logcat_subtitle">この app\'s PID のみの logcat のスナップショットを保存します</string>
+    <string name="settings_debug_export_logs_title">ログを書き出す</string>
+    <string name="settings_debug_export_logs_subtitle">1つのファイルに: アプリログ（クラッシュ・再起動後も残る）/ クラッシュレポート / Wineログ / logcat</string>
+    <string name="settings_debug_export_logs_progress">ログを集めています…</string>
+    <string name="log_export_failed">ログファイルを作成できませんでした</string>
+    <string name="log_export_share_title">GameNativeのログを共有</string>
+    <string name="log_export_share_text">GameNativeのログ一式</string>
     <string name="settings_save_logcat_title">logcatを保存する</string>
     <string name="settings_achievement_show_notification">実績解除通知を表示する</string>
     <string name="settings_achievement_play_sound">実績解除サウンドを再生する</string>

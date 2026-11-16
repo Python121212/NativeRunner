@@ -28,6 +28,7 @@ import app.gamenative.utils.ContainerMigrator
 import app.gamenative.utils.DebugReportUtils
 import app.gamenative.utils.DeviceInfo
 import app.gamenative.utils.IntentLaunchManager
+import app.gamenative.utils.PersistentLog
 import app.gamenative.utils.PlayIntegrity
 import app.gamenative.utils.downloader.ContainerFilesDownloader
 import java.io.File
@@ -87,6 +88,10 @@ class PluviaApp : SplitCompatApplication() {
         } else {
             Timber.plant(ReleaseTree())
         }
+
+        // Straight-to-disk log. Installed before the crash handler so anything it writes is
+        // durable, and before everything else so early failures are in the file too.
+        PersistentLog.install(this)
 
         NetworkMonitor.init(this)
 

@@ -59,6 +59,7 @@ import app.gamenative.utils.IconDecoder
 import app.gamenative.utils.IntentLaunchManager
 import app.gamenative.utils.LauncherOrientation
 import app.gamenative.utils.LocaleHelper
+import app.gamenative.utils.PersistentLog
 import app.gamenative.ui.util.SnackbarManager
 import com.posthog.PostHog
 import com.skydoves.landscapist.coil.LocalCoilImageLoader
@@ -501,6 +502,11 @@ class MainActivity : ComponentActivity() {
         }
 
         super.onDestroy()
+
+        // Best effort: close the session log so the next start does not report this run as killed.
+        // Android usually kills the process instead of letting the activity finish, which is
+        // exactly the case the boot-id marker is there to catch.
+        if (isFinishing) runCatching { PersistentLog.markSessionEnd(applicationContext) }
 
         controllerInputManager?.unregisterInputDeviceListener(controllerDeviceListener)
         controllerInputManager = null
