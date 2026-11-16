@@ -16,9 +16,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -176,32 +173,11 @@ public class ContentsManager {
         if (!ret)
             ret = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, uri, file);
         if (!ret) {
-            // A .wcp is not always a compressed tar: some publishers ship a plain zip with the same
-            // profile.json inside. Trying that here keeps a valid package installable.
-            cleanTmpDir(context);
-            file = getTmpDir(context);
-            Log.d("ContentsManager", "Not a tar archive; trying it as a zip");
-            ret = extractZipArchive(uri, file);
-        }
-        if (!ret) {
             callback.onFailed(InstallFailedReason.ERROR_BADTAR, null);
             return;
         }
 
-        // Packs zipped with a top level folder keep profile.json one level down; the file list is
-        // relative to wherever the profile sits.
-        File profileRoot = file;
         File proFile = new File(file, PROFILE_NAME);
-        if (!proFile.exists()) {
-            File nested = findNestedProfileDir(file);
-            if (nested != null) {
-                // Flatten it: the install dir has to hold profile.json and the files it lists, or
-                // applyContent() looks for them in the wrong place.
-                Log.d("ContentsManager", "profile.json found in " + nested.getName() + "; flattening");
-                flattenInto(nested, file);
-                proFile = new File(file, PROFILE_NAME);
-            }
-        }
         if (!proFile.exists()) {
             Log.e("ContentsManager", "profile.json not found");
             callback.onFailed(InstallFailedReason.ERROR_NOPROFILE, null);
@@ -217,8 +193,8 @@ public class ContentsManager {
 
         String imagefsPath = context.getFilesDir().getAbsolutePath() + "/imagefs";
         for (ContentProfile.ContentFile contentFile : profile.fileList) {
-            File tmpFile = new File(profileRoot, contentFile.source);
-            if (!tmpFile.exists() || !tmpFile.isFile() || !isSubPath(profileRoot.getAbsolutePath(), tmpFile.getAbsolutePath())) {
+            File tmpFile = new File(file, contentFile.source);
+            if (!tmpFile.exists() || !tmpFile.isFile() || !isSubPath(file.getAbsolutePath(), tmpFile.getAbsolutePath())) {
                 callback.onFailed(InstallFailedReason.ERROR_MISSINGFILES, null);
                 return;
             }
@@ -231,9 +207,9 @@ public class ContentsManager {
         }
 
         if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE || profile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON) {
-            File bin = new File(profileRoot, profile.wineBinPath);
-            File lib = new File(profileRoot, profile.wineLibPath);
-            File cp = new File(profileRoot, profile.winePrefixPack);
+            File bin = new File(file, profile.wineBinPath);
+            File lib = new File(file, profile.wineLibPath);
+            File cp = new File(file, profile.winePrefixPack);
 
             if (!bin.exists() || !bin.isDirectory() || !lib.exists() || !lib.isDirectory() || !cp.exists() || !cp.isFile()) {
                 callback.onFailed(InstallFailedReason.ERROR_MISSINGFILES, null);
@@ -242,56 +218,6 @@ public class ContentsManager {
         }
 
         callback.onSucceed(profile);
-    }
-
-    /**
-     * Extracts a zip package into [destination]. The archive is copied out of the Uri first because
-     * FileUtils only unzips from a file, and because a content:// stream cannot be read twice.
-     */
-    private boolean extractZipArchive(Uri uri, File destination) {
-        File tmp = null;
-        try {
-            tmp = File.createTempFile("content", ".zip", context.getCacheDir());
-            try (InputStream in = context.getContentResolver().openInputStream(uri);
-                 OutputStream out = new FileOutputStream(tmp)) {
-                if (in == null) return false;
-                byte[] buffer = new byte[8192];
-                int read;
-                while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
-            }
-            if (tmp.length() == 0) return false;
-            return FileUtils.extractZipFromFile(tmp, destination);
-        } catch (Exception e) {
-            Log.e("ContentsManager", "Could not read the package as a zip: " + e);
-            return false;
-        } finally {
-            if (tmp != null) tmp.delete();
-        }
-    }
-
-    /** Moves everything [nested] holds into [root], then removes the empty folder. */
-    private void flattenInto(File nested, File root) {
-        File[] children = nested.listFiles();
-        if (children == null) return;
-        for (File child : children) {
-            File target = new File(root, child.getName());
-            if (target.exists()) FileUtils.delete(target);
-            if (!child.renameTo(target)) {
-                FileUtils.copy(child, target);
-                FileUtils.delete(child);
-            }
-        }
-        FileUtils.delete(nested);
-    }
-
-    /** The first directory under [root] that holds a profile.json, or null when there is none. */
-    private File findNestedProfileDir(File root) {
-        File[] children = root.listFiles();
-        if (children == null) return null;
-        for (File child : children) {
-            if (child.isDirectory() && new File(child, PROFILE_NAME).isFile()) return child;
-        }
-        return null;
     }
 
     public void finishInstallContent(ContentProfile profile, OnInstallFinishedCallback callback) {

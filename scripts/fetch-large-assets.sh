@@ -8,7 +8,7 @@
 set -euo pipefail
 
 UPSTREAM_REPO="${UPSTREAM_REPO:-utkarshdalal/GameNative}"
-UPSTREAM_SHA="${1:-${UPSTREAM_SHA:-449decb3a51343e3ccd4aebfda8d5caf20cc84b5}}"
+UPSTREAM_SHA="${1:-${UPSTREAM_SHA:-1254563fd55abc4b91d7d63e9c99de27a759dd3d}}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

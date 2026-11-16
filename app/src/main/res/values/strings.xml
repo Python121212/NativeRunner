@@ -1226,6 +1226,7 @@
     <string name="settings_accounts_signed_out">Not signed in</string>
     <string name="settings_accounts_ea_title">EA account</string>
     <string name="settings_accounts_rockstar_title">Rockstar account</string>
+    <string name="settings_accounts_ubisoft_title">Ubisoft account</string>
     <string name="gamenative_account_title">GameNative account</string>
     <string name="gamenative_account_sign_in">Sign in</string>
     <string name="gamenative_account_sign_in_subtitle">Sign in to see your plan and manage your subscription.</string>
@@ -1333,7 +1334,7 @@
     <string name="support_checkout_expired">This checkout timed out. If you already paid, sign in with the email you used and your plan appears.</string>
     <string name="support_already_member">Already a member? Sign in</string>
     <string name="membership_plans_title">Become a member</string>
-    <string name="membership_plans_pitch">Members get AI help getting games running, early access to new releases, and premium roles on Discord.</string>
+    <string name="membership_plans_pitch">Members get Optimize, which learns from your play style to make your games run better, AI help getting your games running, and early access to builds.</string>
     <string name="support_already_subscribed">This account already has a subscription. You can change your plan on the billing page.</string>
     <string name="support_plan_active">Your plan is active.</string>
     <string name="support_plan_pending">Your plan is still being set up. Please try again in a minute.</string>
@@ -1731,8 +1732,8 @@
     <string name="main_recent_crash_title">Recent Crash</string>
     <string name="main_recent_crash_message">Sorry about that!\nIt would be nice to know about the recent issue you\'ve had.\nYou can view and export the most recent crash log in the app\'s settings and attach it as a Github issue in the project\'s repository.\nLink to the Github repo is also in settings!</string>
     <string name="main_thank_you_title">Enjoying GameNative?</string>
-    <string name="main_thank_you_message_play">Become a member today. Members get:\n\n• AI help getting your games running\n• Early access to new releases\n• Premium roles and exclusive channels on Discord\n• …and more\n\nFrom %1$s/month</string>
-    <string name="main_thank_you_message">Become a member today. Members get:\n\n• AI help getting your games running\n• Early access to new releases\n• Premium roles and exclusive channels on Discord\n• …and more\n\nFrom $5/month</string>
+    <string name="main_thank_you_message_play">Become a member today. Members get:\n\n• Optimize: games run better, tuned to your device and play style\n• AI help getting your games running\n• Early access to new builds\n• Premium roles and exclusive channels on Discord\n• …and more\n\nFrom %1$s/month</string>
+    <string name="main_thank_you_message">Become a member today. Members get:\n\n• Optimize: games run better, tuned to your device and play style\n• AI help getting your games running\n• Early access to new builds\n• Premium roles and exclusive channels on Discord\n• …and more\n\nFrom $5/month</string>
     <string name="main_join_kofi">Become a member</string>
     <string name="pitch_session_title">Enjoying %1$s?</string>
     <string name="pitch_five_star_title">Glad %1$s ran great!</string>
@@ -2142,6 +2143,15 @@
     <string name="rockstar_preparing">Preparing Rockstar launcher support</string>
     <string name="rockstar_runtime_installing">Installing the Social Club runtime</string>
     <string name="rockstar_installer_missing">The Social Club installer is missing from the game files. Verify the game files in Steam and try again.</string>
+    <string name="ubisoft_preparing">Preparing Ubisoft Connect support</string>
+    <string name="ubisoft_runtime_installing">Getting Ubisoft Connect files from Ubisoft</string>
+    <string name="ubisoft_login_required_title">Ubisoft sign-in required</string>
+    <string name="ubisoft_login_failed">Ubisoft sign-in failed: %1$s</string>
+    <string name="ubisoft_error_title">Ubisoft Connect</string>
+    <string name="ubisoft_error_session">Ubisoft did not accept the sign-in. Sign out of Ubisoft in Settings and sign in again.</string>
+    <string name="ubisoft_error_not_owned">This Ubisoft account does not have the game, and the Steam copy could not be added to it.</string>
+    <string name="ubisoft_error_activation">Ubisoft refused to activate this game.</string>
+    <string name="ubisoft_error_generic">Ubisoft Connect support stopped with error %1$d.</string>
     <string name="gog_login_cancel">Cancel</string>
     <string name="gog_settings_logout_title">Sign out of GOG</string>
     <string name="gog_settings_logout_subtitle">Sign out from your GOG account</string>
@@ -2184,8 +2194,6 @@
     <string name="manifest_downloading_item">Downloading %1$s...</string>
     <string name="manifest_download_failed">Download failed: %1$s</string>
     <string name="manifest_install_failed">Failed to install %1$s</string>
-    <string name="manifest_install_failed_reason">Failed to install %1$s (%2$s)</string>
-    <string name="manifest_download_not_an_archive">The server returned a web page, not the file</string>
     <string name="manifest_install_success">%1$s installed</string>
     <string name="manifest_content_untrusted">Content is not trusted and was not installed.</string>
     <string name="manifest_type_mismatch">Downloaded content does not match expected type.</string>
@@ -3479,80 +3487,4 @@
     <string name="support_wait_stop">Stop</string>
     <string name="support_reply_ready_tap">Tap to read it.</string>
     <string name="support_notify_me">Notify me when the reply arrives</string>
-
-    <!-- GPU / driver compatibility guard (see app.gamenative.utils.GpuCompat) -->
-    <string name="gpu_compat_blocker_wrapper">This device has a %1$s GPU. The Bionic graphics driver \"%2$s\" is an Adreno-only package and cannot run here: loading it can hang the GPU driver and reboot the device, so the launch was stopped. Switch the container to the glibc variant and set the graphics driver to Vortek.</string>
-    <string name="gpu_compat_blocker_driver">This device has a %1$s GPU, and \"%2$s\" is an Adreno-only graphics driver. The launch was stopped because loading it can hang the GPU driver and reboot the device. Set the graphics driver to Vortek.</string>
-    <string name="gpu_compat_repaired">Adjusted the container for this GPU: %1$s</string>
-    <string name="gpu_compat_settings_warning">This device has a %1$s GPU. Wrapper drivers are Adreno-only packages, so a Bionic container cannot render here. Use a glibc container with the Vortek driver.</string>
-
-    <!-- Thermal guard (see app.gamenative.powercontrol.ThermalGuard) -->
-    <string name="thermal_guard_hot">The device is running warm. The frame rate was capped at %1$d FPS to shed heat.</string>
-    <string name="thermal_guard_critical">The device is very hot. The frame rate was capped at %1$d FPS. Let it cool down.</string>
-    <string name="thermal_guard_recovered">The device has cooled down. The frame rate cap was released.</string>
-    <string name="settings_performance_thermal_guard_title">Cool down automatically</string>
-    <string name="settings_performance_thermal_guard_subtitle">Caps the frame rate while the device is hot and releases it once it has cooled. The cap is 30 FPS when warm and 20 FPS when very hot.</string>
-    <string name="gpu_compat_dialog_title">Graphics driver not supported</string>
-    <string name="gpu_compat_repaired_title">Graphics settings adjusted</string>
-
-    <!-- Pre-launch risk dialog: advice, never a block -->
-    <string name="launch_risk_title_reboot">This combination can restart the device</string>
-    <string name="launch_risk_title_crash">This session may end early</string>
-    <string name="launch_risk_intro_reboot">The graphics driver and this GPU do not match. Loading the driver can stop the GPU driver and restart the whole device.</string>
-    <string name="launch_risk_intro_crash">These can end the session early:</string>
-    <string name="launch_risk_gpu_driver">GPU and graphics driver mismatch</string>
-    <string name="launch_risk_no_dxvk">DXVK is not installed</string>
-    <string name="launch_risk_vram">The driver asks for too much video memory</string>
-    <string name="launch_risk_low_ram">Little free memory</string>
-    <string name="launch_risk_low_storage">Little free storage</string>
-    <string name="launch_risk_device_hot">The device is already hot</string>
-    <string name="launch_risk_repair">Fix and start</string>
-    <string name="launch_risk_proceed">Start anyway</string>
-    <string name="launch_risk_aborted">Launch cancelled at the pre-launch check</string>
-
-    <!-- Log export -->
-    <string name="log_export_share_title">Share logs</string>
-    <string name="log_export_share_text">GameNative log bundle</string>
-    <string name="log_export_failed">Could not build the log bundle</string>
-    <string name="settings_debug_export_logs_title">Export logs (share)</string>
-    <string name="settings_debug_export_logs_subtitle">One file with the persistent log, crash reports, wine log, exit reasons and logcat</string>
-    <string name="settings_debug_export_logs_running">Exporting…</string>
-    <string name="settings_debug_export_logs_last">Last: %1$s</string>
-    <string name="settings_debug_previous_session_title">The last session ended abnormally</string>
-    <string name="settings_debug_previous_session_reboot">A device reboot was detected. Tap to export the log.</string>
-    <string name="settings_debug_previous_session_killed">The app was killed. Tap to export the log.</string>
-
-    <!-- Game file storage optimizer -->
-    <string name="storage_optimize_action">Reduce size</string>
-    <string name="storage_optimize_confirm_title">Shrink the game files</string>
-    <string name="storage_optimize_confirm_body">Removes junk (dumps, temporary files, old logs), replaces duplicate files with hard links and releases zero-filled regions. No file content changes, so the games still start. Run it while no game is running.</string>
-    <string name="storage_optimize_start">Run</string>
-    <string name="storage_optimize_running_title">Shrinking game files</string>
-    <string name="storage_optimize_phase_scan">Counting files</string>
-    <string name="storage_optimize_phase_junk">Removing junk</string>
-    <string name="storage_optimize_phase_dedupe">Merging duplicate files</string>
-    <string name="storage_optimize_phase_holes">Releasing zero regions</string>
-    <string name="storage_optimize_progress_bytes">Reclaimed: %1$s</string>
-    <string name="storage_optimize_stop">Stop</string>
-    <string name="storage_optimize_done_title">Done</string>
-    <string name="storage_optimize_failed">The optimizer could not run.</string>
-    <string name="storage_optimize_result_measured">Free space +%1$s (measured)</string>
-    <string name="storage_optimize_result_detail">Junk %1$s / duplicates %2$s / zero regions %3$s</string>
-    <string name="storage_optimize_result_counts">Scanned %1$d files, deleted %2$d, merged %3$d, %4$d s</string>
-    <string name="storage_optimize_unsupported">Not supported on this device: %1$s</string>
-    <string name="storage_optimize_nothing_to_do">Nothing could be shrunk.</string>
-    <string name="storage_optimize_running_game">Close the running game first.</string>
-
-    <!-- Session risk dialog: heat and memory pressure while a game runs -->
-    <string name="session_risk_heat_title">The device is too hot</string>
-    <string name="session_risk_heat_body">Android may close this app or restart the device if it does not cool down.\n\n%1$s</string>
-    <string name="session_risk_memory_title">Not enough memory</string>
-    <string name="session_risk_memory_body">Android is trying to free memory and may close this app.\n\n%1$s</string>
-    <string name="session_risk_ack">Understood</string>
-    <string name="session_risk_ack_hint">Lower the graphics settings or stop for a while if this repeats.</string>
-
-    <!-- arm64ec DXVK -->
-    <string name="launch_risk_dxvk_arch">The DXVK build does not match this Wine (arm64ec)</string>
-    <string name="launch_risk_dxvk_missing">DXVK could not be installed — Direct3D 11 will fail</string>
-    <string name="settings_debug_install_identity_title">Installed build</string>
 </resources>

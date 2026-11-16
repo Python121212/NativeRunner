@@ -27,17 +27,6 @@ fun SettingsGroupPerformance() {
                 PrefManager.powerControlDefaultEnabled = it
             },
         )
-        var thermalGuardEnabled by rememberSaveable { mutableStateOf(PrefManager.thermalGuardEnabled) }
-        SettingsSwitch(
-            colors = settingsTileColorsAlt(),
-            state = thermalGuardEnabled,
-            title = { Text(stringResource(R.string.settings_performance_thermal_guard_title)) },
-            subtitle = { Text(stringResource(R.string.settings_performance_thermal_guard_subtitle)) },
-            onCheckedChange = {
-                thermalGuardEnabled = it
-                PrefManager.thermalGuardEnabled = it
-            },
-        )
         var sharedShaderCache by rememberSaveable { mutableStateOf(PrefManager.sharedShaderCache) }
         SettingsSwitch(
             colors = settingsTileColorsAlt(),

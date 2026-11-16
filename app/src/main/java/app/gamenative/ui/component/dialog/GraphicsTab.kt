@@ -2,9 +2,7 @@ package app.gamenative.ui.component.dialog
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,7 +23,6 @@ import app.gamenative.ui.component.settings.SettingsMultiListDropdown
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.theme.settingsTileColors
 import app.gamenative.ui.theme.settingsTileColorsAlt
-import app.gamenative.utils.GpuCompat
 import app.gamenative.utils.LsfgVkManager
 import com.alorma.compose.settings.ui.SettingsGroup
 import app.gamenative.ui.component.settings.SettingsSwitch
@@ -39,7 +36,6 @@ import kotlin.math.roundToInt
 @Composable
 fun GraphicsTabContent(state: ContainerConfigState, default: Boolean = false) {
     val config = state.config.value
-    val context = LocalContext.current
     val isX11Display = Container.isX11Display(config.containerVariant, config.displayServer)
     SettingsGroup() {
         if (config.containerVariant.equals(Container.BIONIC, ignoreCase = true)) {
@@ -54,17 +50,6 @@ fun GraphicsTabContent(state: ContainerConfigState, default: Boolean = false) {
                     state.config.value = config.copy(graphicsDriver = StringUtils.parseIdentifier(state.bionicGraphicsDrivers[idx]))
                 },
             )
-            // The Bionic drivers are AdrenoTools packages, so they only load on Adreno. Say so
-            // here, where the choice is made, instead of only refusing the launch later.
-            val gpuFamily = remember { GpuCompat.detectFamily(context) }
-            if (gpuFamily.isKnownNonAdreno) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Text(
-                        text = stringResource(R.string.gpu_compat_settings_warning, gpuFamily.displayName()),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            }
             // Bionic: Graphics Driver Version (stored in graphicsDriverConfig.version; list from manifest + installed)
             SettingsListDropdownSearchable(
                 colors = settingsTileColors(),

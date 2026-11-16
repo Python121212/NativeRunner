@@ -57,7 +57,6 @@ import app.gamenative.powercontrol.PowerManager
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.IconDecoder
 import app.gamenative.utils.IntentLaunchManager
-import app.gamenative.utils.MemoryReclaimer
 import app.gamenative.utils.LauncherOrientation
 import app.gamenative.utils.LocaleHelper
 import app.gamenative.ui.util.SnackbarManager
@@ -327,12 +326,7 @@ class MainActivity : ComponentActivity() {
                         add(AnimatedPngDecoder.Factory())
                     }
                     .build()
-                    .also {
-                        appImageLoader = it
-                        // Lets the app drop these bitmaps while a game is running, when it is
-                        // the game that needs the memory.
-                        MemoryReclaimer.attachImageLoader(it)
-                    }
+                    .also { appImageLoader = it }
             }
 
             val snackbarController = remember { SnackbarHostController() }

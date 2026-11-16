@@ -21,10 +21,6 @@ val arm64Only: Boolean =
 val legacyAbis: List<String> =
     if (arm64Only) listOf("arm64-v8a") else listOf("arm64-v8a", "armeabi-v7a")
 
-// CI speed switch: -PfastBuild=true produces the release-signed variant without
-// R8 minification / resource shrinking, which is minutes faster but larger.
-val fastBuild: Boolean = (project.findProperty("fastBuild") as String?)?.toBoolean() == true
-
 val keystorePropertiesFile = rootProject.file("app/keystores/keystore.properties")
 val keystoreProperties: Properties? = if (keystorePropertiesFile.exists()) {
     Properties().apply {
@@ -78,8 +74,8 @@ android {
         buildConfigField("boolean", "XR_BUILD", "false")
         buildConfigField("boolean", "MODERN_XR", "false")
 
-        versionCode = 26
-        versionName = "1.4.0"
+        versionCode = 27
+        versionName = "1.4.0-upstream"
 
         buildConfigField("boolean", "GOLD", "false")
         fun secret(name: String) =
@@ -190,8 +186,8 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         create("release-signed") {
-            isMinifyEnabled = !fastBuild
-            isShrinkResources = !fastBuild
+            isMinifyEnabled = true
+            isShrinkResources = true
             signingConfig = signingConfigs.getByName("pluvia")
         }
         create("release-gold") {

@@ -18,44 +18,16 @@ public class DXVKHelper {
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars) {
         ImageFs imageFs = ImageFs.find(context);
         envVars.put("DXVK_STATE_CACHE_PATH", "/data/data/app.gamenative/files/imagefs"+ImageFs.CACHE_PATH);
-        // Silence used to be unconditional, which is why a DXVK that could not create its Vulkan
-        // device left nothing behind to read: the session died and the log only showed winevulkan
-        // being loaded and dropped. Warnings are cheap and stay; the debug setting asks for more.
-        if (!envVars.has("DXVK_LOG_LEVEL")) {
-            boolean verbose = false;
-            try {
-                verbose = app.gamenative.PrefManager.INSTANCE.getEnableWineDebug();
-            } catch (Throwable ignored) {
-            }
-            envVars.put("DXVK_LOG_LEVEL", verbose ? "info" : "warn");
-        }
+        envVars.put("DXVK_LOG_LEVEL", "none");
 
         File rootDir = ImageFs.find(context).getRootDir();
         File dxvkConfigFile = new File(imageFs.config_path+"/dxvk.conf");
 
         String content = "\"";
         String maxDeviceMemory = config.get("maxDeviceMemory");
-        // The configured value is a wish; the budget is what the device can hand out right now.
-        // DXVK allocates what it is allowed to and the low-memory killer takes the difference.
         if (!maxDeviceMemory.isEmpty() && !maxDeviceMemory.equals("0")) {
-            int configured = 0;
-            try { configured = Integer.parseInt(maxDeviceMemory.trim()); } catch (NumberFormatException ignored) { }
-            int effective = configured > 0 ? app.gamenative.utils.MemoryBudget.clamp(context, configured) : 0;
-            if (effective != configured && effective > 0) {
-                android.util.Log.i("DXVKHelper", "dxgi.maxDeviceMemory " + configured + "MB -> " + effective + "MB (memory budget)");
-                try {
-                    app.gamenative.utils.PersistentLog.INSTANCE.write(
-                        android.util.Log.INFO, "DXVKHelper",
-                        "maxDeviceMemory " + configured + "MB clamped to " + effective + "MB");
-                } catch (Throwable ignored) { }
-            }
-            if (effective > 0) {
-                content += "dxgi.maxDeviceMemory = "+effective+"\n";
-                content += "dxgi.maxSharedMemory = "+effective+"\n";
-            } else {
-                content += "dxgi.maxDeviceMemory = "+maxDeviceMemory+"\n";
-                content += "dxgi.maxSharedMemory = "+maxDeviceMemory+"\n";
-            }
+            content += "dxgi.maxDeviceMemory = "+maxDeviceMemory+"\n";
+            content += "dxgi.maxSharedMemory = "+maxDeviceMemory+"\n";
         }
 
         String maxFeatureLevel = config.get("maxFeatureLevel");
