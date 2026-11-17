@@ -151,6 +151,22 @@ jobs:
             tail -c 1500000 /tmp/gradle-test.log 2>/dev/null || true
           } > "$LOG" 2>&1 || true
 
+          # Kotlin compile errors are the one failure the generic "What went wrong" excerpt hides,
+          # and they are the only thing an operator can act on without downloading the log.
+          COMPILE="$(grep -E "^e: " /tmp/gradle-test.log 2>/dev/null | head -20)"
+          if [ -n "$COMPILE" ]; then
+            ESCAPED="$(printf '%s\n' "$COMPILE" | head -c 3000 | sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN{ORS="%0A"} {print}')"
+            echo "::error title=compile-errors-${VARIANT}-${RUN_ID}::$ESCAPED"
+          fi
+
+          # Failing test rows name the assertion; the gradle excerpt only says "there were failing
+          # tests". Emit them as errors of their own so the failure is readable without the log.
+          FAILED_ROWS="$(grep -E '^\| .*\| .*\|' /tmp/test-summary.md 2>/dev/null | grep -v '^| class ' | head -20)"
+          if [ -n "$FAILED_ROWS" ]; then
+            ESCAPED="$(printf '%s\n' "$FAILED_ROWS" | head -c 3000 | sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN{ORS="%0A"} {print}')"
+            echo "::error title=failed-tests-${VARIANT}-${RUN_ID}::$ESCAPED"
+          fi
+
           EXCERPT="$(awk '/What went wrong/{f=1} f' /tmp/gradle-test.log 2>/dev/null | head -40)"
           if [ -z "$EXCERPT" ]; then
             EXCERPT="$(grep -h -m20 -A4 'failure message' /tmp/test-summary.md 2>/dev/null | head -40)"

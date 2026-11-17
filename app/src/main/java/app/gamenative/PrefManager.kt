@@ -1595,6 +1595,61 @@ object PrefManager {
             setPref(HIDE_AI_FEATURES, value)
         }
 
+    /* AI 設定診断（端末内ルール＋任意の LLM） */
+
+    private val AI_CONFIG_API_KEY_ENC = byteArrayPreferencesKey("ai_config_api_key_enc")
+    private val AI_CONFIG_API_KEY = stringPreferencesKey("ai_config_api_key")
+
+    /** Optional key for an OpenAI-compatible endpoint. Empty means the on-device rules only. */
+    var aiConfigApiKey: String
+        get() {
+            val encryptedBytes = getPref(AI_CONFIG_API_KEY_ENC, ByteArray(0))
+            if (encryptedBytes.isNotEmpty()) {
+                return runCatching { String(Crypto.decrypt(encryptedBytes)) }.getOrDefault("")
+            }
+            val legacy = getPref(AI_CONFIG_API_KEY, "")
+            if (legacy.isNotEmpty()) {
+                runCatching {
+                    setPref(AI_CONFIG_API_KEY_ENC, Crypto.encrypt(legacy.toByteArray()))
+                    removePref(AI_CONFIG_API_KEY)
+                }
+            }
+            return legacy
+        }
+        set(value) {
+            if (value.isEmpty()) {
+                removePref(AI_CONFIG_API_KEY_ENC)
+            } else {
+                runCatching { setPref(AI_CONFIG_API_KEY_ENC, Crypto.encrypt(value.toByteArray())) }
+            }
+            removePref(AI_CONFIG_API_KEY)
+        }
+
+    private val AI_CONFIG_API_URL = stringPreferencesKey("ai_config_api_url")
+    var aiConfigApiUrl: String
+        get() = getPref(AI_CONFIG_API_URL, DEFAULT_AI_CONFIG_API_URL)
+        set(value) {
+            setPref(AI_CONFIG_API_URL, value.ifBlank { DEFAULT_AI_CONFIG_API_URL })
+        }
+
+    private val AI_CONFIG_MODEL = stringPreferencesKey("ai_config_model")
+    var aiConfigModel: String
+        get() = getPref(AI_CONFIG_MODEL, DEFAULT_AI_CONFIG_MODEL)
+        set(value) {
+            setPref(AI_CONFIG_MODEL, value.ifBlank { DEFAULT_AI_CONFIG_MODEL })
+        }
+
+    private val AI_CONFIG_USE_LLM = booleanPreferencesKey("ai_config_use_llm")
+    /** Off by default: the endpoint call is only made once the user opts in and adds a key. */
+    var aiConfigUseLlm: Boolean
+        get() = getPref(AI_CONFIG_USE_LLM, false)
+        set(value) {
+            setPref(AI_CONFIG_USE_LLM, value)
+        }
+
+    const val DEFAULT_AI_CONFIG_API_URL = "https://api.openai.com/v1/chat/completions"
+    const val DEFAULT_AI_CONFIG_MODEL = "gpt-4o-mini"
+
     // Show game recommendations in library
     private val SHOW_RECOMMENDATIONS = booleanPreferencesKey("show_recommendations")
     var showRecommendations: Boolean

@@ -154,6 +154,7 @@ import app.gamenative.utils.downloader.CoreDriverDownloader
 import app.gamenative.utils.protonFixes.CommonControlsV6
 import app.gamenative.utils.CustomGameScanner
 import app.gamenative.utils.DebugReportUtils
+import app.gamenative.utils.GameLaunchLog
 import app.gamenative.utils.GameSessionId
 import app.gamenative.utils.GuestOutputTail
 import app.gamenative.utils.DebugRunParams
@@ -1753,6 +1754,9 @@ fun XServerScreen(
     // Event handlers defined in composable scope to capture latest state on each recomposition
     val onActivityDestroyed: (AndroidEvent.ActivityDestroyed) -> Unit = {
         Timber.i("onActivityDestroyed")
+        // A kill can land before [exit] runs; sealing here keeps the file readable and stops it
+        // from being appended to by a run that already ended.
+        GameLaunchLog.end("activity_destroyed")
         exit(ui.xServerView!!.getxServer().winHandler, ui.frameRating, currentAppInfo, container, appId, onExit, navigateBack, "activity_destroyed")
     }
     val onKeyEvent: (AndroidEvent.KeyEvent) -> Boolean = {
@@ -4494,8 +4498,12 @@ private fun setupXEnvironment(
     }
 
     GuestOutputTail.reset()
+    // One file per launch, holding this game's guest output only. Opened here, where the config is
+    // final, so the header describes the settings this session really runs with.
+    GameLaunchLog.begin(context, appId)
     ProcessHelper.addDebugCallback { line ->
         GuestOutputTail.append(line)
+        GameLaunchLog.append(line)
         if (captureLogs) {
             logFile?.appendText(line + "\n")
         }
@@ -4764,6 +4772,7 @@ private fun setupXEnvironment(
         }
         if (status != 0) {
             Timber.e("Guest program terminated with status: $status")
+            GameLaunchLog.append("=== guest program terminated with status $status ===")
             onGameLaunchError?.invoke("Game terminated with error status: $status")
         }
         PluviaApp.events.emit(AndroidEvent.GuestProgramTerminated)
@@ -5531,6 +5540,9 @@ private fun exit(
         Timber.i("Exit already in progress, ignoring duplicate request")
         return
     }
+    // The launch log belongs to this session only: seal it here so its tail is the real reason the
+    // session ended, and so the AI check knows where the run stopped.
+    GameLaunchLog.end(reason)
     launchCancelled.set(true)
 
     // Before container_config is read so the id rides into game_sessions and the rating payload.

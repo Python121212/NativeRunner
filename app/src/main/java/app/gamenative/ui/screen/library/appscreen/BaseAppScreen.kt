@@ -48,6 +48,7 @@ import app.gamenative.mods.NexusModManager
 import app.gamenative.optimize.OptimizeController
 import app.gamenative.ui.component.dialog.CommunityConfigsDialog
 import app.gamenative.ui.component.dialog.CommunityHardwareScope
+import app.gamenative.ui.component.dialog.AiLaunchAdviceDialog
 import app.gamenative.ui.component.dialog.ContainerConfigDialog
 import app.gamenative.ui.component.dialog.ExportFilesDialog
 import app.gamenative.ui.component.dialog.ImportFilesDialog
@@ -70,6 +71,8 @@ import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.DeviceGameStatsCache
 import app.gamenative.utils.SessionReport
 import app.gamenative.utils.DiagnosticsLog
+import app.gamenative.utils.GameLaunchLog
+import app.gamenative.utils.LaunchConfigAdvisor
 import app.gamenative.utils.GameCompatibilityCache
 import app.gamenative.utils.GameCompatibilityService
 import app.gamenative.utils.GpuGameStatsCache
@@ -555,6 +558,40 @@ abstract class BaseAppScreen {
         return AppMenuOption(
             AppOptionMenuType.AiDebugRun,
             onClick = { onAiDebugRun() },
+        )
+    }
+
+    /**
+     * "Export launch log": the log of this game's own last launch only. Shown once the game has
+     * been started at least once, so the item never opens an empty file.
+     */
+    @Composable
+    protected open fun getExportLaunchLogOption(
+        context: Context,
+        libraryItem: LibraryItem,
+        onExportLaunchLog: () -> Unit,
+    ): AppMenuOption? {
+        if (GameLaunchLog.newest(context, libraryItem.appId) == null) return null
+        return AppMenuOption(
+            AppOptionMenuType.ExportLaunchLog,
+            onClick = { onExportLaunchLog() },
+        )
+    }
+
+    /**
+     * "AI check settings": reads the last launch log plus the device and proposes setting changes.
+     * The existing "Get AI help" item is untouched; this one only deals with configuration.
+     */
+    @Composable
+    protected open fun getAiConfigFixOption(
+        context: Context,
+        libraryItem: LibraryItem,
+        onAiConfigFix: () -> Unit,
+    ): AppMenuOption? {
+        if (PrefManager.hideAiFeatures) return null
+        return AppMenuOption(
+            AppOptionMenuType.AiConfigFix,
+            onClick = { onAiConfigFix() },
         )
     }
 
@@ -1282,6 +1319,8 @@ abstract class BaseAppScreen {
         onTestGraphics: () -> Unit,
         onPlayWithDiagnostics: () -> Unit,
         onAiDebugRun: () -> Unit,
+        onExportLaunchLog: () -> Unit,
+        onAiConfigFix: () -> Unit,
         exportFrontendLauncher: ActivityResultLauncher<String>,
     ): List<AppMenuOption> {
         val isInstalled = isInstalled(context, libraryItem)
@@ -1296,6 +1335,8 @@ abstract class BaseAppScreen {
             getTestGraphicsOption(context, libraryItem, onTestGraphics)?.let { menuOptions.add(it) }
             getPlayWithDiagnosticsOption(context, libraryItem, onPlayWithDiagnostics)?.let { menuOptions.add(it) }
             getAiDebugRunOption(context, libraryItem, onAiDebugRun)?.let { menuOptions.add(it) }
+            getExportLaunchLogOption(context, libraryItem, onExportLaunchLog)?.let { menuOptions.add(it) }
+            getAiConfigFixOption(context, libraryItem, onAiConfigFix)?.let { menuOptions.add(it) }
             getShareDiagnosticsOption(context, libraryItem)?.let { menuOptions.add(it) }
             getResetContainerOption(context, libraryItem)?.let { menuOptions.add(it) }
             getCreateShortcutOption(context, libraryItem)?.let { menuOptions.add(it) }
@@ -1872,6 +1913,13 @@ abstract class BaseAppScreen {
                 }
         }
 
+        /* Launch log export and the AI settings check both live on this screen: they only need the
+         * game's own container, so no callback has to travel up through the library. */
+        var aiAdviceVisible by remember(appId) { mutableStateOf(false) }
+        var aiAdviceLoading by remember(appId) { mutableStateOf(false) }
+        var aiAdvice by remember(appId) { mutableStateOf<LaunchConfigAdvisor.Advice?>(null) }
+        val aiScope = rememberCoroutineScope()
+
         val optionsMenu = getOptionsMenu(
             context,
             libraryItem,
@@ -1881,7 +1929,28 @@ abstract class BaseAppScreen {
             onTestGraphics,
             onPlayWithDiagnostics,
             onAiDebugRun,
-            exportFrontendLauncher,
+            onExportLaunchLog = {
+                aiScope.launch {
+                    val file = GameLaunchLog.export(context, libraryItem.appId)
+                    if (file == null) {
+                        SnackbarManager.show(context.getString(R.string.game_launch_log_missing))
+                    } else {
+                        GameLaunchLog.share(context, file)
+                    }
+                }
+            },
+            onAiConfigFix = {
+                aiAdviceVisible = true
+                aiAdviceLoading = true
+                aiAdvice = null
+                aiScope.launch {
+                    aiAdvice = runCatching { LaunchConfigAdvisor.advise(context, libraryItem.appId) }
+                        .onFailure { Timber.w(it, "AI config check failed for ${libraryItem.appId}") }
+                        .getOrNull()
+                    aiAdviceLoading = false
+                }
+            },
+            exportFrontendLauncher = exportFrontendLauncher,
         )
 
         // Get download info based on game source for progress tracking
@@ -2006,11 +2075,35 @@ abstract class BaseAppScreen {
             }
         }
 
+        AiLaunchAdviceDialog(
+            visible = aiAdviceVisible,
+            loading = aiAdviceLoading,
+            advice = aiAdvice,
+            gameName = displayInfo.name,
+            onDismiss = { aiAdviceVisible = false },
+            onApply = { entries ->
+                aiAdviceVisible = false
+                aiScope.launch {
+                    val applied = runCatching { LaunchConfigAdvisor.apply(context, libraryItem.appId, entries) }
+                        .getOrDefault(0)
+                    withContext(Dispatchers.IO) { containerData = loadContainerData(context, libraryItem) }
+                    SnackbarManager.show(
+                        if (applied > 0) {
+                            context.getString(R.string.ai_advice_applied, applied)
+                        } else {
+                            context.getString(R.string.ai_advice_apply_failed)
+                        },
+                    )
+                }
+            },
+        )
+
         // Show container config dialog if needed
         if (showConfigDialog) {
             ContainerConfigDialog(
                 title = "${displayInfo.name} Config",
                 initialConfig = containerData,
+                appId = libraryItem.appId,
                 onDismissRequest = { showConfigDialog = false },
                 onSave = {
                     saveContainerConfig(context, libraryItem, it)

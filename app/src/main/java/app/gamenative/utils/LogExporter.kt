@@ -109,6 +109,19 @@ object LogExporter {
                     }
                 }
 
+                writeSection(out, "game launch log (tail)") {
+                    val gameLogs = runCatching { GameLaunchLog.logFiles(context) }.getOrDefault(emptyList())
+                    if (gameLogs.isEmpty()) {
+                        it.write("(no launch logs yet)\n")
+                    } else {
+                        gameLogs.take(3).forEach { file ->
+                            it.write("--- ${file.name} (${file.length()} bytes) ---\n")
+                            it.write(GameLaunchLog.tail(file, 192L * 1024L))
+                            it.write("\n")
+                        }
+                    }
+                }
+
                 writeSection(out, "wine log (tail)") {
                     val wineLog = File(File(context.getExternalFilesDir(null), "wine_logs"), "wine_debug.log")
                     if (!wineLog.exists()) {
