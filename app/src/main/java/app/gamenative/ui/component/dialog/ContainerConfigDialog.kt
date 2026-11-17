@@ -290,6 +290,8 @@ fun ContainerConfigDialog(
     default: Boolean = false,
     title: String,
     initialConfig: ContainerData = ContainerData(),
+    /** The game this container belongs to; null for the app-wide defaults. */
+    appId: String? = null,
     onDismissRequest: () -> Unit,
     onSave: (ContainerData) -> Unit,
 ) {
@@ -1078,6 +1080,7 @@ fun ContainerConfigDialog(
 
         val state = ContainerConfigState(
             config = configState,
+            appId = appId,
             graphicsDrivers = graphicsDriversRef,
             bionicWineEntries = bionicWineEntriesRef,
             glibcWineEntries = glibcWineEntriesRef,
