@@ -115,23 +115,25 @@ class LaunchConfigAdvisorTest {
     }
 
     @Test
-    fun `a name is required for an env change and a dot for a kv change`() {
+    fun `an env change without a name is dropped and a bare key is kept`() {
         val json = JSONObject().apply {
             put(
                 "changes",
                 org.json.JSONArray().apply {
+                    // No "name": nothing could be written for envVars.
                     put(JSONObject().put("key", "envVars").put("to", "1"))
-                    put(JSONObject().put("key", "dxwrapperConfig").put("to", "x"))
-                    put(JSONObject().put("key", "dxwrapperConfig").put("to", "1.0").put("why", "default why"))
+                    // A bare container key is a whole-value set, and is allowed.
+                    put(JSONObject().put("key", "dxwrapperConfig").put("to", "version=2.4.1-gplasync"))
+                    // A dot with nothing after it addresses no sub-key.
+                    put(JSONObject().put("key", "graphicsDriverConfig.").put("to", "x"))
                 },
             )
         }
 
         val entries = LaunchConfigAdvisor.parseChanges(json.toString(), base)
 
-        // The bare "dxwrapperConfig" (no sub-key) is not writable and is dropped.
-        assertEquals(1, entries.size)
-        assertEquals("default why", entries.single().why)
+        assertEquals(listOf("dxwrapperConfig"), entries.map { it.key })
+        assertEquals("Suggested by the model.", entries.single().why)
     }
 
     private fun entry(key: String, to: String?) =
