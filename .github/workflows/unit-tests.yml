@@ -159,6 +159,14 @@ jobs:
             echo "::error title=compile-errors-${VARIANT}-${RUN_ID}::$ESCAPED"
           fi
 
+          # Failing test rows name the assertion; the gradle excerpt only says "there were failing
+          # tests". Emit them as errors of their own so the failure is readable without the log.
+          FAILED_ROWS="$(grep -E '^\| .*\| .*\|' /tmp/test-summary.md 2>/dev/null | grep -v '^| class ' | head -20)"
+          if [ -n "$FAILED_ROWS" ]; then
+            ESCAPED="$(printf '%s\n' "$FAILED_ROWS" | head -c 3000 | sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN{ORS="%0A"} {print}')"
+            echo "::error title=failed-tests-${VARIANT}-${RUN_ID}::$ESCAPED"
+          fi
+
           EXCERPT="$(awk '/What went wrong/{f=1} f' /tmp/gradle-test.log 2>/dev/null | head -40)"
           if [ -z "$EXCERPT" ]; then
             EXCERPT="$(grep -h -m20 -A4 'failure message' /tmp/test-summary.md 2>/dev/null | head -40)"
@@ -172,23 +180,7 @@ jobs:
           git config user.email "ci-bot@users.noreply.github.com" || true
           git add -f "$LOG" || true
           git commit -m "ci: unit test log for run ${RUN_ID} (${VARIANT})" || true
-          # Both variants push to the same branch from different runners. A plain retry loses the
-          # other job's log, so re-read the branch and re-apply this file on top of it before each
-          # attempt; the last attempt keeps whatever arrived in the meantime.
-          pushed="false"
-          for attempt in 1 2 3; do
-            if git push --force origin "HEAD:refs/heads/ci-logs" > /tmp/push.log 2>&1; then
-              pushed="true"
-              break
-            fi
-            sleep "$((attempt * 5))"
-            git fetch --depth=1 origin ci-logs || true
-            git reset --soft FETCH_HEAD 2>/dev/null || true
-            git checkout FETCH_HEAD -- . 2>/dev/null || true
-            git add -f "$LOG" || true
-            git commit -m "ci: unit test log for run ${RUN_ID} (${VARIANT})" || true
-          done
-          if [ "$pushed" = "true" ]; then
+          if git push --force origin "HEAD:refs/heads/ci-logs" > /tmp/push.log 2>&1; then
             echo "log pushed to ci-logs"
           else
             echo "log push failed:"; tail -5 /tmp/push.log || true
