@@ -2,7 +2,6 @@ package app.gamenative.utils
 
 import app.gamenative.api.SupportSuggestion
 import app.gamenative.ui.screen.support.SupportSuggestionApplier
-import app.gamenative.utils.ContainerUtils
 import com.winlator.container.ContainerData
 import com.winlator.core.envvars.EnvVars
 import org.json.JSONObject
@@ -35,14 +34,7 @@ class LaunchConfigAdvisorTest {
     /* Applies through the same SupportSuggestionApplier path the support and optimize features
      * use, so what these assertions cover is exactly what the app will write. */
     private fun applied(entries: List<LaunchConfigAdvisor.Entry>): ContainerData {
-        val edits = entries.mapNotNull { entry ->
-            when {
-                entry.key == SupportSuggestion.ENV_KEY -> entry.name?.let { SupportSuggestionApplier.Edit(SupportSuggestion.ENV_KEY, it, entry.to) }
-                entry.key.contains('.') -> SupportSuggestionApplier.Edit(entry.key, null, entry.to)
-                entry.to == null -> null
-                else -> SupportSuggestionApplier.Edit(entry.key, null, entry.to)
-            }
-        }
+        val edits = entries.mapNotNull { LaunchConfigAdvisor.editFor(it) }
         val updates = SupportSuggestionApplier.updatesFor(base, edits)
         return ContainerUtils.applyBestConfigMapToContainerData(base, updates)
     }
@@ -111,7 +103,7 @@ class LaunchConfigAdvisorTest {
 
         val entries = LaunchConfigAdvisor.parseChanges(content, base)
 
-        assertEquals(listOf("dxwrapperConfig.version", SupportSupportSuggestion.ENV_KEY), entries.map { it.key })
+        assertEquals(listOf("dxwrapperConfig.version", SupportSuggestion.ENV_KEY), entries.map { it.key })
         assertEquals("DXVK_ASYNC", entries[1].name)
         assertFalse(entries[0].confident)
     }

@@ -719,7 +719,7 @@
     <string name="game_launch_log_share_title">Share GameNative launch log</string>
     <string name="game_launch_log_share_text">Launch log of this game (this game only)</string>
     <string name="ai_diagnosis_run_hint">Reads the last launch log of this game and proposes settings</string>
-    <string name="ai_diagnosis_log_hint">This game's own log only, no other game</string>
+    <string name="ai_diagnosis_log_hint">This game\'s own log only, no other game</string>
     <string name="ai_advice_title">AI settings check</string>
     <string name="ai_advice_analysing">Reading the launch log…</string>
     <string name="ai_advice_source_rules">From the on-device rules (no key needed)</string>

@@ -129,7 +129,7 @@ object LaunchConfigAdvisor {
         }
 
     /** The same Edit shape the support suggestion and optimize appliers write through. */
-    private fun editFor(entry: Entry): SupportSuggestionApplier.Edit? = when {
+    internal fun editFor(entry: Entry): SupportSuggestionApplier.Edit? = when {
         entry.key == SupportSuggestion.ENV_KEY -> entry.name?.let { name ->
             SupportSuggestionApplier.Edit(SupportSuggestion.ENV_KEY, name, entry.to)
         }

@@ -47,10 +47,11 @@ fun AiDiagnosisSection(appId: String?) {
         if (appId == null || entries.isEmpty()) return@LaunchedEffect
         val applied = runCatching { LaunchConfigAdvisor.apply(context, appId, entries) }.getOrDefault(0)
         SnackbarManager.show(
-            context.getString(
-                if (applied > 0) R.string.ai_advice_applied else R.string.ai_advice_apply_failed,
-                applied,
-            ),
+            if (applied > 0) {
+                context.getString(R.string.ai_advice_applied, applied)
+            } else {
+                context.getString(R.string.ai_advice_apply_failed)
+            },
         )
     }
 
