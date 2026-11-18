@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.outlined.AddCircleOutline
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -86,6 +87,7 @@ import app.gamenative.ui.theme.ThemedDropdownMenuItem
 import app.gamenative.ui.theme.ThemedExposedDropdownMenu
 import app.gamenative.ui.theme.hasMenuFocusFill
 import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.utils.LaunchConfigAdvisor
 import app.gamenative.ui.component.dialog.state.MessageDialogState
 import app.gamenative.ui.component.settings.SettingsCPUList
 import app.gamenative.ui.component.settings.SettingsCenteredLabel
@@ -136,6 +138,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
 import kotlin.math.roundToInt
+import timber.log.Timber
 
 /**
  * Gets the component title for Win Components settings group.
@@ -1234,6 +1237,35 @@ fun ContainerConfigDialog(
             onConfirmClick = onDismissRequest,
         )
 
+        /* The diagnosis writes the live container, not the copy this dialog edits, so it can be
+         * opened from any tab and needs no save first. */
+        var aiAdviceVisible by remember { mutableStateOf(false) }
+        var aiAdviceLoading by remember { mutableStateOf(false) }
+        var aiAdvice by remember { mutableStateOf<LaunchConfigAdvisor.Advice?>(null) }
+        if (appId != null) {
+            AiLaunchAdviceDialog(
+                visible = aiAdviceVisible,
+                loading = aiAdviceLoading,
+                advice = aiAdvice,
+                gameName = title,
+                onDismiss = { aiAdviceVisible = false },
+                onApply = { entries ->
+                    aiAdviceVisible = false
+                    scope.launch {
+                        val applied = runCatching { LaunchConfigAdvisor.apply(context, appId, entries) }
+                            .getOrDefault(0)
+                        SnackbarManager.show(
+                            if (applied > 0) {
+                                context.getString(R.string.ai_advice_applied, applied)
+                            } else {
+                                context.getString(R.string.ai_advice_apply_failed)
+                            },
+                        )
+                    }
+                },
+            )
+        }
+
         Dialog(
             onDismissRequest = onDismissCheck,
             properties = DialogProperties(
@@ -1261,6 +1293,31 @@ fun ContainerConfigDialog(
                                 )
                             },
                             actions = {
+                                // Only for a real game: the app-wide default has no launch log to read.
+                                if (appId != null) {
+                                    IconButton(
+                                        enabled = !aiAdviceLoading,
+                                        onClick = {
+                                            aiAdviceVisible = true
+                                            aiAdviceLoading = true
+                                            aiAdvice = null
+                                            scope.launch {
+                                                aiAdvice = runCatching {
+                                                    LaunchConfigAdvisor.advise(context, appId)
+                                                }
+                                                    .onFailure { Timber.w(it, "AI config check failed for $appId") }
+                                                    .getOrNull()
+                                                aiAdviceLoading = false
+                                            }
+                                        },
+                                        content = {
+                                            Icon(
+                                                Icons.Default.SmartToy,
+                                                contentDescription = stringResource(R.string.container_config_ai_diagnosis),
+                                            )
+                                        },
+                                    )
+                                }
                                 IconButton(
                                     onClick = { onSave(config) },
                                     content = { Icon(Icons.Default.Save, null) },

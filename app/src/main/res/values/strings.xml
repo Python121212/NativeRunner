@@ -731,6 +731,7 @@
     <string name="ai_advice_apply">Apply %1$d</string>
     <string name="ai_advice_applied">Applied %1$d setting(s)</string>
     <string name="ai_advice_apply_failed">Nothing was applied</string>
+    <string name="container_config_ai_diagnosis">AI settings check</string>
     <string name="ai_advice_settings_title">AI settings check</string>
     <string name="ai_advice_settings_subtitle">Uses the launch log, the device and the GPU to propose settings</string>
     <string name="ai_advice_use_llm_title">Send the log to an AI model</string>
