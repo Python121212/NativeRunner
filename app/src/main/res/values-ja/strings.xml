@@ -779,6 +779,19 @@
     <string name="ai_advice_test_failed">応答がありません</string>
     <string name="ai_advice_test_need_key">先にAPIキーを入力してください</string>
     <string name="ai_advice_clear_key">キーを削除</string>
+    <!-- Launch log viewer -->
+    <string name="option_view_launch_log">起動ログを見る</string>
+    <string name="launch_log_title">起動ログ</string>
+    <string name="launch_log_reading">ログを読み込み中…</string>
+    <string name="launch_log_copy">コピー</string>
+    <string name="launch_log_copied">ログをコピーしました</string>
+    <string name="launch_log_share">共有</string>
+    <string name="launch_log_ask_ai">AIに聞く</string>
+    <string name="launch_log_ask_ai_title">この起動について質問する</string>
+    <string name="launch_log_ask_ai_hint">例: なぜランチャーで止まった？</string>
+    <string name="launch_log_ask_ai_send">質問する</string>
+    <string name="ai_advice_answer">回答</string>
+    <string name="ai_advice_llm_failed">モデルに接続できませんでした（%1$s）。端末内ルールのみで診断しました。</string>
     <string name="settings_debug_export_logs_title">ログを書き出す</string>
     <string name="settings_debug_export_logs_subtitle">1つのファイルに: アプリログ（クラッシュ・再起動後も残る）/ クラッシュレポート / Wineログ / logcat</string>
     <string name="settings_debug_export_logs_progress">ログを集めています…</string>

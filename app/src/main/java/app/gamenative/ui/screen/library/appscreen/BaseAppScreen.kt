@@ -52,6 +52,7 @@ import app.gamenative.ui.component.dialog.AiLaunchAdviceDialog
 import app.gamenative.ui.component.dialog.ContainerConfigDialog
 import app.gamenative.ui.component.dialog.ExportFilesDialog
 import app.gamenative.ui.component.dialog.ImportFilesDialog
+import app.gamenative.ui.component.dialog.LaunchLogDialog
 import app.gamenative.ui.component.dialog.LoadingDialog
 import app.gamenative.ui.component.dialog.NexusModsDialog
 import app.gamenative.ui.component.dialog.OptimizeDialog
@@ -575,6 +576,23 @@ abstract class BaseAppScreen {
         return AppMenuOption(
             AppOptionMenuType.ExportLaunchLog,
             onClick = { onExportLaunchLog() },
+        )
+    }
+
+    /**
+     * "View launch logs": the kept launches of this game, readable on the phone. Offer it whenever a
+     * log exists, so the user does not have to share a file out just to look at it.
+     */
+    @Composable
+    protected open fun getViewLaunchLogOption(
+        context: Context,
+        libraryItem: LibraryItem,
+        onViewLaunchLog: () -> Unit,
+    ): AppMenuOption? {
+        if (GameLaunchLog.newest(context, libraryItem.appId) == null) return null
+        return AppMenuOption(
+            AppOptionMenuType.ViewLaunchLog,
+            onClick = { onViewLaunchLog() },
         )
     }
 
@@ -1320,6 +1338,7 @@ abstract class BaseAppScreen {
         onPlayWithDiagnostics: () -> Unit,
         onAiDebugRun: () -> Unit,
         onExportLaunchLog: () -> Unit,
+        onViewLaunchLog: () -> Unit,
         onAiConfigFix: () -> Unit,
         exportFrontendLauncher: ActivityResultLauncher<String>,
     ): List<AppMenuOption> {
@@ -1336,6 +1355,7 @@ abstract class BaseAppScreen {
             getPlayWithDiagnosticsOption(context, libraryItem, onPlayWithDiagnostics)?.let { menuOptions.add(it) }
             getAiDebugRunOption(context, libraryItem, onAiDebugRun)?.let { menuOptions.add(it) }
             getExportLaunchLogOption(context, libraryItem, onExportLaunchLog)?.let { menuOptions.add(it) }
+            getViewLaunchLogOption(context, libraryItem, onViewLaunchLog)?.let { menuOptions.add(it) }
             getAiConfigFixOption(context, libraryItem, onAiConfigFix)?.let { menuOptions.add(it) }
             getShareDiagnosticsOption(context, libraryItem)?.let { menuOptions.add(it) }
             getResetContainerOption(context, libraryItem)?.let { menuOptions.add(it) }
@@ -1918,7 +1938,20 @@ abstract class BaseAppScreen {
         var aiAdviceVisible by remember(appId) { mutableStateOf(false) }
         var aiAdviceLoading by remember(appId) { mutableStateOf(false) }
         var aiAdvice by remember(appId) { mutableStateOf<LaunchConfigAdvisor.Advice?>(null) }
+        var launchLogVisible by remember(appId) { mutableStateOf(false) }
         val aiScope = rememberCoroutineScope()
+
+        fun runAiAdvice(question: String? = null) {
+            aiAdviceVisible = true
+            aiAdviceLoading = true
+            aiAdvice = null
+            aiScope.launch {
+                aiAdvice = runCatching { LaunchConfigAdvisor.advise(context, libraryItem.appId, question = question) }
+                    .onFailure { Timber.w(it, "AI config check failed for ${libraryItem.appId}") }
+                    .getOrNull()
+                aiAdviceLoading = false
+            }
+        }
 
         val optionsMenu = getOptionsMenu(
             context,
@@ -1939,17 +1972,8 @@ abstract class BaseAppScreen {
                     }
                 }
             },
-            onAiConfigFix = {
-                aiAdviceVisible = true
-                aiAdviceLoading = true
-                aiAdvice = null
-                aiScope.launch {
-                    aiAdvice = runCatching { LaunchConfigAdvisor.advise(context, libraryItem.appId) }
-                        .onFailure { Timber.w(it, "AI config check failed for ${libraryItem.appId}") }
-                        .getOrNull()
-                    aiAdviceLoading = false
-                }
-            },
+            onViewLaunchLog = { launchLogVisible = true },
+            onAiConfigFix = { runAiAdvice() },
             exportFrontendLauncher = exportFrontendLauncher,
         )
 
@@ -2075,12 +2099,27 @@ abstract class BaseAppScreen {
             }
         }
 
+        LaunchLogDialog(
+            visible = launchLogVisible,
+            appId = libraryItem.appId,
+            gameName = displayInfo.name,
+            onDismiss = { launchLogVisible = false },
+            onShare = { file ->
+                aiScope.launch {
+                    val exported = GameLaunchLog.export(context, libraryItem.appId, file)
+                    if (exported != null) GameLaunchLog.share(context, exported)
+                }
+            },
+            onAiCheck = { runAiAdvice() },
+        )
+
         AiLaunchAdviceDialog(
             visible = aiAdviceVisible,
             loading = aiAdviceLoading,
             advice = aiAdvice,
             gameName = displayInfo.name,
             onDismiss = { aiAdviceVisible = false },
+            onAsk = { question -> runAiAdvice(question) },
             onApply = { entries ->
                 aiAdviceVisible = false
                 aiScope.launch {

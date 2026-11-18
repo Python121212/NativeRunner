@@ -61,6 +61,10 @@ object LaunchConfigAdvisor {
         val source: Source,
         /** Facts that were used, shown so the user can see what the advice is based on. */
         val facts: List<String> = emptyList(),
+        /** The model's answer to the user's free-text question, when one was asked. */
+        val answer: String? = null,
+        /** Set when the user asked for the model but it could not be reached: the rules still ran. */
+        val llmError: String? = null,
     ) {
         enum class Source { RULES, LLM }
     }
@@ -75,42 +79,52 @@ object LaunchConfigAdvisor {
      * Analyses [appId]'s most recent launch. [logText] may be supplied when the caller already has
      * it (the report dialog does); otherwise the newest launch log is read.
      */
-    suspend fun advise(context: Context, appId: String, logText: String? = null): Advice =
-        withContext(Dispatchers.IO) {
-            val live = runCatching { ContainerUtils.toContainerData(ContainerUtils.getContainer(context, appId)) }.getOrNull()
-            val log = logText?.takeIf { it.isNotBlank() } ?: GameLaunchLog.tail(context, appId)
-            val facts = facts(context, appId, live, log)
-            val ruleEntries = rules(context, live, log)
+    suspend fun advise(
+        context: Context,
+        appId: String,
+        logText: String? = null,
+        /** An optional question about this run, answered by the model in the same call. */
+        question: String? = null,
+    ): Advice = withContext(Dispatchers.IO) {
+        val live = runCatching { ContainerUtils.toContainerData(ContainerUtils.getContainer(context, appId)) }.getOrNull()
+        val log = logText?.takeIf { it.isNotBlank() } ?: GameLaunchLog.tail(context, appId)
+        val excerpt = LaunchLogExcerpt.build(log)
+        val facts = facts(context, appId, live, log) + summaryFacts(log, excerpt)
+        val ruleEntries = rules(context, live, log)
+        val asked = question?.trim()?.takeIf { it.isNotEmpty() }
 
-            if (!PrefManager.aiConfigUseLlm || PrefManager.aiConfigApiKey.isBlank()) {
-                return@withContext Advice(
-                    entries = ruleEntries,
-                    summary = summaryFor(ruleEntries, facts),
-                    source = Advice.Source.RULES,
-                    facts = facts,
-                )
-            }
-
-            val llmEntries = runCatching { askLlm(context, live, log, facts, ruleEntries) }
-                .onFailure { Timber.tag(TAG).w(it, "LLM advice failed, keeping the rules") }
-                .getOrNull()
-
-            if (llmEntries.isNullOrEmpty()) {
-                Advice(
-                    entries = ruleEntries,
-                    summary = summaryFor(ruleEntries, facts),
-                    source = Advice.Source.RULES,
-                    facts = facts,
-                )
-            } else {
-                Advice(
-                    entries = merge(ruleEntries, llmEntries),
-                    summary = summaryFor(llmEntries, facts),
-                    source = Advice.Source.LLM,
-                    facts = facts,
-                )
-            }
+        if (!PrefManager.aiConfigUseLlm || PrefManager.aiConfigApiKey.isBlank()) {
+            return@withContext Advice(
+                entries = ruleEntries,
+                summary = summaryFor(ruleEntries, facts),
+                source = Advice.Source.RULES,
+                facts = facts,
+            )
         }
+
+        val reply = runCatching { askLlm(context, live, excerpt, facts, ruleEntries, asked) }
+            .onFailure { Timber.tag(TAG).w(it, "LLM advice failed, keeping the rules") }
+            .getOrNull()
+
+        val llmEntries = reply?.entries.orEmpty()
+        if (reply == null || (llmEntries.isEmpty() && reply.answer.isNullOrBlank())) {
+            Advice(
+                entries = ruleEntries,
+                summary = summaryFor(ruleEntries, facts),
+                source = Advice.Source.RULES,
+                facts = facts,
+                llmError = reply?.error ?: "no answer from the endpoint",
+            )
+        } else {
+            Advice(
+                entries = merge(ruleEntries, llmEntries),
+                summary = summaryFor(if (llmEntries.isEmpty()) ruleEntries else llmEntries, facts),
+                source = Advice.Source.LLM,
+                facts = facts,
+                answer = reply.answer,
+            )
+        }
+    }
 
     /** Applies exactly [entries] to the game's container. Returns how many values were written. */
     suspend fun apply(context: Context, appId: String, entries: List<Entry>): Int =
@@ -178,6 +192,23 @@ object LaunchConfigAdvisor {
             )
         }
         add("log lines: ${log.lines().size}")
+    }
+
+    /**
+     * What the condensed log says, as facts both brains can quote: how many lines, how many of them
+     * look like failures, and the first few distinct ones. This is what lets the dialog explain
+     * itself when no rule fired.
+     */
+    private fun summaryFacts(log: String, excerpt: String): List<String> = buildList {
+        if (log.isBlank()) return@buildList
+        val problems = log.lines().filter { LaunchLogExcerpt.isProblem(it) }
+        add("log problems: ${problems.map { LaunchLogExcerpt.normalise(it) }.distinct().size} distinct lines")
+        problems.firstOrNull()?.let { add("first problem: ${it.trim().take(160)}") }
+        val phase = log.lines().lastOrNull { it.startsWith("=== phase: ") }
+        if (phase != null) add("last phase: ${phase.trim('=', ' ', '+')}")
+        val ending = log.lines().lastOrNull { it.startsWith("=== session end") || it.startsWith("=== guest program terminated") }
+        if (ending != null) add("session ending: ${ending.trim('=', ' ')}")
+        if (excerpt.isNotBlank() && problems.isEmpty()) add("log has no failure-looking line: the run probably worked or died silently")
     }
 
     private fun gpuFlags(context: Context): String = runCatching {
@@ -352,10 +383,15 @@ object LaunchConfigAdvisor {
 
     /* ---------------------------------------------------------------- LLM */
 
-    private fun prompt(facts: List<String>, log: String, rules: List<Entry>): String = buildString {
+    private fun prompt(facts: List<String>, log: String, rules: List<Entry>, question: String? = null): String = buildString {
         appendLine("You are diagnosing a Windows game that fails to start under Wine on Android.")
         appendLine("Facts:")
         facts.forEach { appendLine("- $it") }
+        appendLine()
+        appendLine("Read the log below in two parts: the deduplicated problem lines first, then the")
+        appendLine("last lines before the run stopped. A line ending in [xN] happened N times.")
+        appendLine("The \"phase:\" markers are the launcher's own progress; the run stopped in the")
+        appendLine("last phase it printed. Do not propose a change for a phase that was never reached.")
         appendLine()
         appendLine("Allowed container keys: ${SuggestionConfigKeys.APPLICABLE_CONFIG_KEYS.keys.joinToString(", ")}")
         appendLine("- For dxwrapperConfig / graphicsDriverConfig / wincomponents use \"<key>.<subKey>\".")
@@ -368,20 +404,36 @@ object LaunchConfigAdvisor {
             rules.forEach { appendLine("- ${it.key}${it.name?.let { n -> " ($n)" } ?: ""} -> ${it.to}: ${it.why}") }
             appendLine()
         }
-        appendLine("Log tail (the game's own launch log):")
+        appendLine("Condensed launch log (this game only):")
         appendLine("-----")
         appendLine(log)
         appendLine("-----")
-        appendLine("Answer with JSON only: {\"summary\":\"...\",\"changes\":[{\"key\":\"...\",\"name\":null,\"to\":\"...\",\"why\":\"...\"}]}")
+        if (!question.isNullOrBlank()) {
+            appendLine()
+            appendLine("The user also asks:")
+            appendLine(question)
+            appendLine("Answer it in \"answer\", in the same language the question was asked in.")
+        }
+        appendLine(
+            "Answer with JSON only: {\"summary\":\"...\",\"answer\":\"...\"," +
+                "\"changes\":[{\"key\":\"...\",\"name\":null,\"to\":\"...\",\"why\":\"...\"}]}",
+        )
     }
+
+    /**
+     * What the model returned: the changes it proposes and, when the user asked something, its
+     * answer. Kept apart from [Advice] so [parseReply] can be tested on a raw payload.
+     */
+    internal data class Reply(val entries: List<Entry>, val answer: String?, val error: String? = null)
 
     private suspend fun askLlm(
         context: Context,
         live: ContainerData?,
-        log: String,
+        excerpt: String,
         facts: List<String>,
         rules: List<Entry>,
-    ): List<Entry>? {
+        question: String?,
+    ): Reply? {
         val key = PrefManager.aiConfigApiKey
         if (key.isBlank() || live == null) return null
 
@@ -393,7 +445,12 @@ object LaunchConfigAdvisor {
                 "messages",
                 JSONArray().apply {
                     put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
-                    put(JSONObject().put("role", "user").put("content", prompt(facts, log.takeLast(12000), rules)))
+                    put(
+                        JSONObject().put("role", "user").put(
+                            "content",
+                            prompt(facts, excerpt.takeLast(12000), rules, question),
+                        ),
+                    )
                 },
             )
         }
@@ -408,28 +465,32 @@ object LaunchConfigAdvisor {
             .callTimeout(LLM_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
             .build()
 
-        client.newCall(request).execute().use { response ->
+        return client.newCall(request).execute().use { response ->
             val text = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 Timber.tag(TAG).w("endpoint HTTP ${response.code}: ${text.take(300)}")
-                return null
+                return@use Reply(emptyList(), null, "the endpoint answered HTTP ${response.code}")
             }
             val content = JSONObject(text)
                 .optJSONArray("choices")?.optJSONObject(0)
                 ?.optJSONObject("message")?.optString("content")
                 .orEmpty()
-            if (content.isBlank()) return null
-            return parseChanges(content, live)
+            if (content.isBlank()) return@use Reply(emptyList(), null, "the endpoint returned no content")
+            parseReply(content, live)
         }
     }
 
     /** Tolerant parser: the model is asked for JSON, but a stray fence or nesting must not crash. */
-    internal fun parseChanges(content: String, live: ContainerData): List<Entry> {
+    internal fun parseChanges(content: String, live: ContainerData): List<Entry> = parseReply(content, live).entries
+
+    internal fun parseReply(content: String, live: ContainerData): Reply {
         val start = content.indexOf('{')
         val end = content.lastIndexOf('}')
-        if (start < 0 || end <= start) return emptyList()
-        val root = runCatching { JSONObject(content.substring(start, end + 1)) }.getOrNull() ?: return emptyList()
-        val changes = root.optJSONArray("changes") ?: return emptyList()
+        if (start < 0 || end <= start) return Reply(emptyList(), null, "the answer was not JSON")
+        val root = runCatching { JSONObject(content.substring(start, end + 1)) }.getOrNull()
+            ?: return Reply(emptyList(), null, "the answer was not valid JSON")
+        val answer = root.optString(QUESTION_ANSWER_KEY).trim().takeIf { it.isNotEmpty() }
+        val changes = root.optJSONArray("changes") ?: return Reply(emptyList(), answer)
         val out = mutableListOf<Entry>()
         for (i in 0 until changes.length()) {
             val item = changes.optJSONObject(i) ?: continue
@@ -456,13 +517,19 @@ object LaunchConfigAdvisor {
             )
             if (out.size >= 6) break
         }
-        return out
+        return Reply(out, answer)
     }
 
     private const val SYSTEM_PROMPT =
         "You fix Windows-on-Wine-on-Android launch failures. You answer with JSON only, never prose. " +
             "You prefer the smallest change that addresses the evidence in the log, and you never " +
-            "invent components that a stock GameNative install does not ship."
+            "invent components that a stock GameNative install does not ship. "
+    
+    /**
+     * The optional free-text question the user can ask about this run, answered in the same call as
+     * the diagnosis so a second round trip (and a second look at the log) is not needed.
+     */
+    private const val QUESTION_ANSWER_KEY = "answer"
 
 
     /** Used by the settings screen to check a key without running a diagnosis. */

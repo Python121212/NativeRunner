@@ -2540,6 +2540,7 @@ fun XServerScreen(
                             )
 
                             Timber.i("Doing things once")
+                            GameLaunchLog.phase("setting up wine prefix")
                             val envVars = EnvVars()
                             immersiveHooks?.windowsVr?.beforeWineSystemSetup(container)
                             RedistInstallerExtractor.clearCache()
@@ -2679,6 +2680,7 @@ fun XServerScreen(
                                 Timber.e(cleanupEx, "Error cleaning up environment after setup failure")
                             }
                             PluviaApp.xEnvironment = null
+                            GameLaunchLog.append("=== launch failed during setup: ${e.message} ===")
                             if (!launchCancel.get()) onGameLaunchError?.invoke("Failed to setup wine: ${e.message}")
                         } finally {
                             setupExecutor.shutdown()
@@ -4501,6 +4503,7 @@ private fun setupXEnvironment(
     // One file per launch, holding this game's guest output only. Opened here, where the config is
     // final, so the header describes the settings this session really runs with.
     GameLaunchLog.begin(context, appId)
+    GameLaunchLog.phase("preparing environment")
     ProcessHelper.addDebugCallback { line ->
         GuestOutputTail.append(line)
         GameLaunchLog.append(line)
@@ -4786,6 +4789,7 @@ private fun setupXEnvironment(
             setGameStart(remaining.isEmpty())
         }
         if (remaining.isEmpty()) {
+            GameLaunchLog.phase("launching game")
             guestProgramLauncherComponent.setGuestExecutable(gameExecutable)
             guestProgramLauncherComponent.setTerminationCallback(gameTerminationCallback)
             return
@@ -4809,6 +4813,7 @@ private fun setupXEnvironment(
                 PluviaApp.events.emit(AndroidEvent.SetBootingSplashText(context.getString(R.string.steam_starting)))
                 SteamHostStatusWatch.start(context, ImageFs.find(context), onGameLaunchError)
             } else if (nextRemaining.isEmpty()) {
+                GameLaunchLog.phase("prerequisites done, launching game")
                 PluviaApp.events.emit(AndroidEvent.SetBootingSplashText("Launching game..."))
             } else {
                 PluviaApp.events.emit(AndroidEvent.SetBootingSplashText("Installing prerequisites..."))
@@ -4896,11 +4901,13 @@ private fun setupXEnvironment(
         }
     }
 
+    GameLaunchLog.phase("starting components")
     xServer.winHandler.start()
     try {
         immersiveHooks?.windowsVr?.beforeGuestProcessStart()
         environment.startEnvironmentComponents()
         immersiveHooks?.windowsVr?.onEnvironmentStarted()
+        GameLaunchLog.phase("environment running")
         if (container != null && !bootToContainer) {
             CoroutineScope(Dispatchers.IO).launch { GameFileDetection.ensure(context, container) }
         }

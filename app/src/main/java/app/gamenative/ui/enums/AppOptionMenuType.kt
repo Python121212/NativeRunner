@@ -37,6 +37,7 @@ enum class AppOptionMenuType(@StringRes val title: Int) {
     ShareDiagnostics(R.string.option_share_diagnostics),
     AiDebugRun(R.string.option_ai_debug_run),
     ExportLaunchLog(R.string.option_export_launch_log),
+    ViewLaunchLog(R.string.option_view_launch_log),
     AiConfigFix(R.string.option_ai_config_fix),
     ManageGameContent(R.string.option_manage_dlc),
     ManageWorkshop(R.string.option_manage_workshop),
