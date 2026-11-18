@@ -764,6 +764,7 @@
     <string name="ai_advice_apply">%1$d件を適用</string>
     <string name="ai_advice_applied">%1$d件の設定を適用しました</string>
     <string name="ai_advice_apply_failed">適用された設定はありません</string>
+    <string name="container_config_ai_diagnosis">AI設定診断</string>
     <string name="ai_advice_settings_title">AI設定診断</string>
     <string name="ai_advice_settings_subtitle">起動ログ・機種・GPUから設定の変更案を出します</string>
     <string name="ai_advice_use_llm_title">ログをAIモデルに送る</string>
