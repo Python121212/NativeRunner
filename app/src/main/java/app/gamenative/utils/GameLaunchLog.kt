@@ -1,8 +1,11 @@
 package app.gamenative.utils
 
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Environment
+import android.os.StatFs
 import androidx.core.content.FileProvider
 import app.gamenative.R
 import com.winlator.container.ContainerData
@@ -25,6 +28,11 @@ import java.util.Locale
  * why *this* game did not start has to pick the right lines out of everybody else's. This file is
  * written from the moment the container is prepared until the session ends, it is flushed line by
  * line, and it stays until a newer launch of the same game pushes it out.
+ *
+ * Two things make it readable afterwards: every phase the launcher goes through is marked (so a
+ * run that stopped during "preparing the environment" is obvious from the tail), and the header
+ * carries the numbers a diagnosis needs (available RAM, free storage, Vulkan API level) next to the
+ * settings the run actually used.
  */
 object GameLaunchLog {
     private const val TAG = "GameLaunchLog"
@@ -43,6 +51,7 @@ object GameLaunchLog {
     private var writtenBytes = 0L
     private var startedAt = 0L
     private var truncated = false
+    private var lastPhase = ""
 
     fun dir(context: Context): File = File(context.filesDir, DIR).apply { mkdirs() }
 
@@ -69,6 +78,9 @@ object GameLaunchLog {
     /** True while a launch is being written, i.e. the game is (or is being) started. */
     val recording: Boolean get() = currentAppId != null
 
+    /** The file being written right now, for a viewer that opens while the game is still running. */
+    fun currentSession(): File? = currentFile
+
     /**
      * Opens a fresh file for this launch. Called when the container is about to be prepared, so
      * anything the launch itself logs ends up in the file, not just the game's own output.
@@ -89,6 +101,7 @@ object GameLaunchLog {
                 currentAppId = appId
                 writtenBytes = 0L
                 truncated = false
+                lastPhase = ""
                 startedAt = System.currentTimeMillis()
                 runCatching {
                     FileOutputStream(file, false).let { out ->
@@ -113,9 +126,12 @@ object GameLaunchLog {
                 "gpu         : " +
                     runCatching { com.winlator.core.GPUInformation.getRenderer(appContext) }.getOrNull().orEmpty().ifEmpty { "unknown" },
             )
+            writeRaw("vulkan      : ${vulkanVersion(appContext)}")
+            writeRaw("memory      : ${memoryLine(appContext)}")
+            writeRaw("storage     : ${storageLine(appContext)}")
             writeRaw("app         : ${app.gamenative.BuildConfig.VERSION_NAME} (${app.gamenative.BuildConfig.VERSION_CODE})")
             if (data != null) writeConfig(data)
-            writeRaw("=== guest output ===")
+            writePhase("guest output")
         }.onFailure { Timber.tag(TAG).w(it, "launch log setup failed for $appId") }
     }
 
@@ -125,8 +141,29 @@ object GameLaunchLog {
         writeRaw("config      : dxwrapper=${data.dxwrapper} dxwrapperConfig=${data.dxwrapperConfig}")
         writeRaw("config      : box64=${data.box64Version}/${data.box64Preset} fexcore=${data.fexcoreVersion}/${data.fexcorePreset}")
         writeRaw("config      : videoMemorySize=${data.videoMemorySize} startup=${data.startupSelection} suspend=${data.suspendPolicy}")
+        writeRaw("config      : screen=${data.screenSize} renderer=${data.renderer} audio=${data.audioDriver}")
         if (data.execArgs.isNotBlank()) writeRaw("config      : execArgs=${data.execArgs}")
-        if (data.envVars.isNotBlank()) writeRaw("config      : envVars=${data.envVars}")
+        if (data.envVars.isNotBlank()) {
+            // Environment values are copied for support, so credentials are masked exactly where
+            // the launcher masks them for its own log line.
+            writeRaw("config      : envVars=${runCatching { com.winlator.core.envvars.EnvVarRedaction.redact(data.envVars) }.getOrDefault(data.envVars)}")
+        }
+    }
+
+    /**
+     * Marks a phase the launcher is entering. Cheap to call repeatedly: a phase that is already the
+     * current one is not written again, which keeps a retry loop from flooding the file.
+     */
+    fun phase(name: String) {
+        if (currentAppId == null) return
+        if (name == lastPhase) return
+        writePhase(name)
+    }
+
+    private fun writePhase(name: String) {
+        lastPhase = name
+        val seconds = if (startedAt > 0) (System.currentTimeMillis() - startedAt) / 1000L else 0L
+        writeRaw("=== phase: $name (+${seconds}s) ===")
     }
 
     /**
@@ -150,6 +187,7 @@ object GameLaunchLog {
             closeLocked()
             currentAppId = null
             currentFile = null
+            lastPhase = ""
         }
     }
 
@@ -162,13 +200,29 @@ object GameLaunchLog {
     fun tail(file: File?, maxBytes: Long = EXPORT_BYTES): String =
         if (file == null) "" else readTail(file, maxBytes)
 
+    /** A one-line description of a session file: its stamp, size and how it ended. */
+    data class Session(val file: File, val label: String, val sizeBytes: Long, val ending: String)
+
+    /**
+     * The kept launches of [appId], newest first, with the ending line pulled from the file so the
+     * viewer can show "killed by the system" next to the run it belongs to.
+     */
+    fun sessionList(context: Context, appId: String): List<Session> = sessions(context, appId).map { file ->
+        Session(
+            file = file,
+            label = file.name.removePrefix("${safeId(appId)}-").removeSuffix(".log"),
+            sizeBytes = file.length(),
+            ending = readTail(file, 2_048).lines().lastOrNull { it.startsWith("=== session end") }.orEmpty(),
+        )
+    }
+
     /**
      * Copies the newest launch log into a shareable file in the cache dir. Null when this game has
      * no log yet. Only this game's file is copied: the export never carries other games.
      */
-    suspend fun export(context: Context, appId: String): File? = withContext(Dispatchers.IO) {
+    suspend fun export(context: Context, appId: String, file: File? = null): File? = withContext(Dispatchers.IO) {
         try {
-            val source = newest(context, appId) ?: return@withContext null
+            val source = file ?: newest(context, appId) ?: return@withContext null
             val directory = File(context.cacheDir, "game-log-export").apply { mkdirs() }
             directory.listFiles()?.forEach { runCatching { it.delete() } }
             val name = runCatching { ContainerUtils.resolveGameName(appId) }.getOrDefault(appId)
@@ -200,6 +254,31 @@ object GameLaunchLog {
             Timber.tag(TAG).e(e, "could not share the launch log")
         }
     }
+
+    /* ---------------------------------------------------------------- header facts */
+
+    private fun vulkanVersion(context: Context): String = runCatching {
+        val api = com.winlator.core.GPUHelper.vkGetApiVersion()
+        val major = com.winlator.core.GPUHelper.vkVersionMajor(api)
+        val minor = com.winlator.core.GPUHelper.vkVersionMinor(api)
+        if (major <= 0 && minor <= 0) "unknown" else "$major.$minor.${api and 0xFFF}"
+    }.getOrDefault("unknown")
+
+    /** The numbers that decide whether the guest can hold a game: free RAM and the low-RAM flag. */
+    private fun memoryLine(context: Context): String = runCatching {
+        val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val info = ActivityManager.MemoryInfo()
+        manager.getMemoryInfo(info)
+        val totalMb = info.totalMem / (1024 * 1024)
+        val availMb = info.availMem / (1024 * 1024)
+        "free=${availMb}MB total=${totalMb}MB lowMemory=${info.lowMemory} threshold=${info.threshold / (1024 * 1024)}MB"
+    }.getOrDefault("unknown")
+
+    private fun storageLine(context: Context): String = runCatching {
+        val stat = StatFs(Environment.getDataDirectory().path)
+        val freeMb = stat.availableBytes / (1024 * 1024)
+        "dataFree=${freeMb}MB"
+    }.getOrDefault("unknown")
 
     private fun writeRaw(text: String) {
         synchronized(lock) { writeLocked(text) }

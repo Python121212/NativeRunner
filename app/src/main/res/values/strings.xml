@@ -746,6 +746,20 @@
     <string name="ai_advice_test_failed">The endpoint did not answer</string>
     <string name="ai_advice_test_need_key">Add an API key first</string>
     <string name="ai_advice_clear_key">Remove the key</string>
+
+    <!-- Launch log viewer -->
+    <string name="option_view_launch_log">View launch logs</string>
+    <string name="launch_log_title">Launch logs</string>
+    <string name="launch_log_reading">Reading the log…</string>
+    <string name="launch_log_copy">Copy</string>
+    <string name="launch_log_copied">Log copied</string>
+    <string name="launch_log_share">Share</string>
+    <string name="launch_log_ask_ai">Ask AI</string>
+    <string name="launch_log_ask_ai_title">Ask about this launch</string>
+    <string name="launch_log_ask_ai_hint">e.g. why did it stop at the launcher?</string>
+    <string name="launch_log_ask_ai_send">Ask</string>
+    <string name="ai_advice_answer">Answer</string>
+    <string name="ai_advice_llm_failed">The model could not be reached (%1$s); only the on-device rules ran.</string>
     <string name="settings_debug_export_logs_title">Export logs</string>
     <string name="settings_debug_export_logs_subtitle">One file: app log (survives a crash or reboot), crash reports, wine log and logcat</string>
     <string name="settings_debug_export_logs_progress">Collecting logs…</string>

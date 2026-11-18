@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SmartToy
@@ -87,6 +88,7 @@ import app.gamenative.ui.theme.ThemedDropdownMenuItem
 import app.gamenative.ui.theme.ThemedExposedDropdownMenu
 import app.gamenative.ui.theme.hasMenuFocusFill
 import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.utils.GameLaunchLog
 import app.gamenative.utils.LaunchConfigAdvisor
 import app.gamenative.ui.component.dialog.state.MessageDialogState
 import app.gamenative.ui.component.settings.SettingsCPUList
@@ -1242,13 +1244,42 @@ fun ContainerConfigDialog(
         var aiAdviceVisible by remember { mutableStateOf(false) }
         var aiAdviceLoading by remember { mutableStateOf(false) }
         var aiAdvice by remember { mutableStateOf<LaunchConfigAdvisor.Advice?>(null) }
+        var launchLogVisible by remember { mutableStateOf(false) }
+
+        fun runAiAdvice(question: String? = null) {
+            val id = appId ?: return
+            aiAdviceVisible = true
+            aiAdviceLoading = true
+            aiAdvice = null
+            scope.launch {
+                aiAdvice = runCatching { LaunchConfigAdvisor.advise(context, id, question = question) }
+                    .onFailure { Timber.w(it, "AI config check failed for $id") }
+                    .getOrNull()
+                aiAdviceLoading = false
+            }
+        }
+
         if (appId != null) {
+            LaunchLogDialog(
+                visible = launchLogVisible,
+                appId = appId,
+                gameName = title,
+                onDismiss = { launchLogVisible = false },
+                onShare = { file ->
+                    scope.launch {
+                        val exported = GameLaunchLog.export(context, appId, file)
+                        if (exported != null) GameLaunchLog.share(context, exported)
+                    }
+                },
+                onAiCheck = { runAiAdvice() },
+            )
             AiLaunchAdviceDialog(
                 visible = aiAdviceVisible,
                 loading = aiAdviceLoading,
                 advice = aiAdvice,
                 gameName = title,
                 onDismiss = { aiAdviceVisible = false },
+                onAsk = { question -> runAiAdvice(question) },
                 onApply = { entries ->
                     aiAdviceVisible = false
                     scope.launch {
@@ -1296,20 +1327,17 @@ fun ContainerConfigDialog(
                                 // Only for a real game: the app-wide default has no launch log to read.
                                 if (appId != null) {
                                     IconButton(
-                                        enabled = !aiAdviceLoading,
-                                        onClick = {
-                                            aiAdviceVisible = true
-                                            aiAdviceLoading = true
-                                            aiAdvice = null
-                                            scope.launch {
-                                                aiAdvice = runCatching {
-                                                    LaunchConfigAdvisor.advise(context, appId)
-                                                }
-                                                    .onFailure { Timber.w(it, "AI config check failed for $appId") }
-                                                    .getOrNull()
-                                                aiAdviceLoading = false
-                                            }
+                                        onClick = { launchLogVisible = true },
+                                        content = {
+                                            Icon(
+                                                Icons.Default.Description,
+                                                contentDescription = stringResource(R.string.launch_log_title),
+                                            )
                                         },
+                                    )
+                                    IconButton(
+                                        enabled = !aiAdviceLoading,
+                                        onClick = { runAiAdvice() },
                                         content = {
                                             Icon(
                                                 Icons.Default.SmartToy,

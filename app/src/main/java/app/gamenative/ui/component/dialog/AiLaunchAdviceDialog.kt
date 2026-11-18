@@ -34,6 +34,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import app.gamenative.R
+import app.gamenative.ui.component.NoExtractOutlinedTextField
 import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.theme.ThemedDialogSurface
 import app.gamenative.utils.LaunchConfigAdvisor
@@ -51,6 +52,8 @@ fun AiLaunchAdviceDialog(
     gameName: String,
     onDismiss: () -> Unit,
     onApply: (List<LaunchConfigAdvisor.Entry>) -> Unit,
+    /** When set, the dialog offers a free-text question about this launch. */
+    onAsk: ((String) -> Unit)? = null,
 ) {
     if (!visible) return
     Dialog(
@@ -71,6 +74,7 @@ fun AiLaunchAdviceDialog(
                 }
             }
             var showFacts by remember { mutableStateOf(false) }
+            var question by remember { mutableStateOf("") }
 
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
@@ -112,6 +116,30 @@ fun AiLaunchAdviceDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 8.dp),
                     )
+                    advice.llmError?.let { error ->
+                        Text(
+                            text = stringResource(R.string.ai_advice_llm_failed, error),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                    advice.answer?.let { answer ->
+                        Text(
+                            text = stringResource(R.string.ai_advice_answer),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(top = 10.dp),
+                        )
+                        Text(
+                            text = answer,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 160.dp)
+                                .verticalScroll(rememberScrollState()),
+                        )
+                    }
                 }
 
                 Column(
@@ -189,6 +217,32 @@ fun AiLaunchAdviceDialog(
                                 )
                             }
                         }
+                    }
+                }
+
+                if (onAsk != null && !loading) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        NoExtractOutlinedTextField(
+                            value = question,
+                            onValueChange = { question = it },
+                            modifier = Modifier.weight(1f),
+                            label = { Text(stringResource(R.string.launch_log_ask_ai_title)) },
+                            placeholder = { Text(stringResource(R.string.launch_log_ask_ai_hint)) },
+                            singleLine = true,
+                        )
+                        TextButton(
+                            enabled = question.isNotBlank(),
+                            onClick = {
+                                val asked = question.trim()
+                                question = ""
+                                onAsk.invoke(asked)
+                            },
+                        ) { Text(stringResource(R.string.launch_log_ask_ai_send)) }
                     }
                 }
 

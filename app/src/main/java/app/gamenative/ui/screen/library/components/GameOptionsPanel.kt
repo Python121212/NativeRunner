@@ -30,6 +30,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AddToHomeScreen
+import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -401,6 +402,7 @@ private fun getIconForOption(type: AppOptionMenuType): ImageVector {
         AppOptionMenuType.ShareDiagnostics -> Icons.Default.Share
         AppOptionMenuType.AiDebugRun -> Icons.Default.SmartToy
         AppOptionMenuType.ExportLaunchLog -> Icons.Default.Description
+        AppOptionMenuType.ViewLaunchLog -> Icons.AutoMirrored.Filled.Article
         AppOptionMenuType.AiConfigFix -> Icons.Default.Build
         AppOptionMenuType.ImportConfig -> Icons.Default.ArrowDownward
         AppOptionMenuType.ExportConfig -> Icons.Default.ArrowUpward
@@ -480,6 +482,7 @@ private fun groupOptions(options: List<AppMenuOption>): Map<OptionCategory, List
             AppOptionMenuType.PlayWithDiagnostics,
             AppOptionMenuType.ShareDiagnostics,
             AppOptionMenuType.ExportLaunchLog,
+            AppOptionMenuType.ViewLaunchLog,
             AppOptionMenuType.AiConfigFix,
             AppOptionMenuType.ManageGameContent,
             AppOptionMenuType.ManageWorkshop,

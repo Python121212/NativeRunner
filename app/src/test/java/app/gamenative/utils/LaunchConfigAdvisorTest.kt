@@ -7,6 +7,7 @@ import com.winlator.core.envvars.EnvVars
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -134,6 +135,36 @@ class LaunchConfigAdvisorTest {
 
         assertEquals(listOf("dxwrapperConfig"), entries.map { it.key })
         assertEquals("Suggested by the model.", entries.single().why)
+    }
+
+    @Test
+    fun `an answer comes back next to the changes it was asked for`() {
+        val content = """
+            {"summary":"s","answer":"The run stopped while the wine prefix was set up.",
+             "changes":[{"key":"videoMemorySize","to":"1024","why":"out of memory"}]}
+        """.trimIndent()
+
+        val reply = LaunchConfigAdvisor.parseReply(content, base)
+
+        assertEquals("The run stopped while the wine prefix was set up.", reply.answer)
+        assertEquals(listOf("videoMemorySize"), reply.entries.map { it.key })
+    }
+
+    @Test
+    fun `an answer without changes is still an answer, not a parse failure`() {
+        val reply = LaunchConfigAdvisor.parseReply("""{"answer":"Looks fine to me."}""", base)
+
+        assertEquals("Looks fine to me.", reply.answer)
+        assertTrue(reply.entries.isEmpty())
+        assertNull(reply.error)
+    }
+
+    @Test
+    fun `prose is reported as a parse error instead of a silent empty result`() {
+        val reply = LaunchConfigAdvisor.parseReply("I cannot help with that.", base)
+
+        assertTrue(reply.entries.isEmpty())
+        assertEquals("the answer was not JSON", reply.error)
     }
 
     private fun entry(key: String, to: String?) =
