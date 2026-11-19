@@ -28,7 +28,6 @@ import app.gamenative.utils.ContainerMigrator
 import app.gamenative.utils.DebugReportUtils
 import app.gamenative.utils.DeviceInfo
 import app.gamenative.utils.IntentLaunchManager
-import app.gamenative.utils.PersistentLog
 import app.gamenative.utils.PlayIntegrity
 import app.gamenative.utils.downloader.ContainerFilesDownloader
 import java.io.File
@@ -88,10 +87,6 @@ class PluviaApp : SplitCompatApplication() {
         } else {
             Timber.plant(ReleaseTree())
         }
-
-        // Straight-to-disk log. Installed before the crash handler so anything it writes is
-        // durable, and before everything else so early failures are in the file too.
-        PersistentLog.install(this)
 
         NetworkMonitor.init(this)
 
@@ -283,6 +278,9 @@ class PluviaApp : SplitCompatApplication() {
         var achievementWatcher: app.gamenative.service.AchievementWatcher? = null
         var steamHostAchievementPoller: app.gamenative.service.SteamHostAchievementPoller? = null
 
+        // html5 counterpart of xEnvironment. owned by WebViewScreen (set on attach, cleared on dispose).
+        var activeWebView: android.webkit.WebView? = null
+
         var isOverlayPaused by mutableStateOf(false)
         @Volatile
         var isActivityInForeground: Boolean = true
@@ -333,6 +331,9 @@ class PluviaApp : SplitCompatApplication() {
             radialMenuCoordinator = null
             achievementWatcher = null
             steamHostAchievementPoller = null
+            // MainActivity's stale-keepAlive guard needs BOTH xEnvironment and activeWebView null;
+            // leaving this set wedges keepAlive on the next same-process launch.
+            activeWebView = null
             ActiveGameRegistry.clear()
             SteamService.clearSuspendedGameState()
             SteamService.keepAlive = false

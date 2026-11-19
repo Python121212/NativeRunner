@@ -24,6 +24,8 @@ proguard/
 
 # Log Files
 *.log
+# but leveldb test fixtures keep their write-ahead .log files -- that IS the DB data, not a log
+!app/src/test/resources/html5-saves/**/*leveldb/*.log
 
 # Built application files
 *.apk
@@ -76,15 +78,3 @@ app/src/main/cpp/steambootstrap/steam_bootstrap.c
 
 # Vendored SDL2 headers (fetched for evshim build, not pushed)
 app/src/main/cpp/third_party/SDL2/
-
-# ---------------------------------------------------------------------------
-# Large binary assets are kept out of this Git history on purpose.
-# The full GameNative tree (~700 MB) has ~660 MB of prebuilt binaries
-# (container patterns, DXVK/graphics-driver bundles, .so libraries, bundletool).
-# They are present in the working tree here but not committed; re-download
-# them with:  scripts/fetch-large-assets.sh
-# ---------------------------------------------------------------------------
-app/src/*/assets/
-app/src/*/jniLibs/
-tools/bundletool-*.jar
-app/src/main/res/drawable/ic_launcher_gold_background.xml

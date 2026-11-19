@@ -9,7 +9,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -30,7 +29,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AddToHomeScreen
-import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -43,7 +41,6 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Face4
 import androidx.compose.material.icons.filled.Feedback
@@ -89,6 +86,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.gamenative.R
+import app.gamenative.ui.component.focusOnNavigationKey
+import app.gamenative.ui.component.focusRing
 import app.gamenative.ui.data.AppMenuOption
 import app.gamenative.ui.enums.AppOptionMenuType
 import app.gamenative.ui.theme.MenuColorScope
@@ -153,7 +152,8 @@ fun GameOptionsPanel(
         ) + fadeOut(),
         modifier = modifier
             .fillMaxHeight()
-            .width(adaptivePanelWidth(360.dp)),
+            .width(adaptivePanelWidth(360.dp))
+            .focusOnNavigationKey(firstItemFocusRequester, enabled = isOpen),
     ) {
         MenuColorScope {
             Column(
@@ -293,29 +293,18 @@ private fun OptionItem(
             .clip(PluviaTheme.shape(12.dp))
             .then(
                 if (rowFocus != null) {
-                    Modifier.themedFocusRow(rowFocus, isFocused, PluviaTheme.shape(12.dp))
+                    Modifier.themedFocusRow(rowFocus.copy(ring = null), isFocused, PluviaTheme.shape(12.dp))
                 } else {
-                    Modifier
-                        .background(
-                            if (isFocused) {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                            } else {
-                                Color.Transparent
-                            },
-                        )
-                        .then(
-                            if (isFocused) {
-                                Modifier.border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                                    PluviaTheme.shape(12.dp),
-                                )
-                            } else {
-                                Modifier
-                            },
-                        )
+                    Modifier.background(
+                        if (isFocused) {
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        } else {
+                            Color.Transparent
+                        },
+                    )
                 },
             )
+            .focusRing(interactionSource, PluviaTheme.shape(12.dp), width = 2.dp)
             .then(
                 if (focusRequester != null) {
                     Modifier.focusRequester(focusRequester)
@@ -400,10 +389,8 @@ private fun getIconForOption(type: AppOptionMenuType): ImageVector {
         AppOptionMenuType.TestGraphics -> Icons.Default.Build
         AppOptionMenuType.PlayWithDiagnostics -> Icons.Default.BugReport
         AppOptionMenuType.ShareDiagnostics -> Icons.Default.Share
+        AppOptionMenuType.ExportRunMetrics -> Icons.Default.Share
         AppOptionMenuType.AiDebugRun -> Icons.Default.SmartToy
-        AppOptionMenuType.ExportLaunchLog -> Icons.Default.Description
-        AppOptionMenuType.ViewLaunchLog -> Icons.AutoMirrored.Filled.Article
-        AppOptionMenuType.AiConfigFix -> Icons.Default.Build
         AppOptionMenuType.ImportConfig -> Icons.Default.ArrowDownward
         AppOptionMenuType.ExportConfig -> Icons.Default.ArrowUpward
         AppOptionMenuType.ImportSaves -> Icons.Default.ArrowDownward
@@ -481,9 +468,7 @@ private fun groupOptions(options: List<AppMenuOption>): Map<OptionCategory, List
             AppOptionMenuType.TestGraphics,
             AppOptionMenuType.PlayWithDiagnostics,
             AppOptionMenuType.ShareDiagnostics,
-            AppOptionMenuType.ExportLaunchLog,
-            AppOptionMenuType.ViewLaunchLog,
-            AppOptionMenuType.AiConfigFix,
+            AppOptionMenuType.ExportRunMetrics,
             AppOptionMenuType.ManageGameContent,
             AppOptionMenuType.ManageWorkshop,
             AppOptionMenuType.ManageMods,

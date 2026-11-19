@@ -65,7 +65,7 @@ import app.gamenative.ui.component.HeroBadge
 import app.gamenative.ui.component.MetricDeltaTile
 import app.gamenative.ui.component.PremiumDialogButton
 import app.gamenative.ui.component.PremiumTextButton
-import app.gamenative.ui.screen.support.requestFocusAfterLayout
+import app.gamenative.ui.component.requestFocusAfterLayout
 import app.gamenative.ui.theme.PluviaTheme
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -284,12 +284,13 @@ private fun OptimizeCardDialog(request: OptimizeController.CardRequest) {
             val tiles = resultTiles(card)
             val measured = if (tiles.isEmpty()) measuredText(card) else null
             // A step kept without a gain the player can see is not called a help.
-            val visible = card.capFps != null || OptimizeCards.showsGain(card)
+            val visible = card.capFps != null || card.outcome == OptimizeCard.OUTCOME_COOLER || OptimizeCards.showsGain(card)
             CardSpec(
                 title = card.capFps?.let { stringResource(R.string.optimize_after_cap_held, it) } ?: when {
                     !visible -> stringResource(R.string.optimize_after_kept_no_visible)
                     card.outcome == OptimizeCard.OUTCOME_FPS -> stringResource(R.string.optimize_after_helped_fps)
                     card.outcome == OptimizeCard.OUTCOME_STUTTER -> stringResource(R.string.optimize_after_helped_stutter)
+                    card.outcome == OptimizeCard.OUTCOME_COOLER -> stringResource(R.string.optimize_after_helped_cooler)
                     else -> stringResource(R.string.optimize_after_helped_stable)
                 },
                 accent = if (visible) success else OptimizeAccent(Icons.Filled.Tune, PluviaTheme.colors.textMuted),
@@ -300,9 +301,18 @@ private fun OptimizeCardDialog(request: OptimizeController.CardRequest) {
                 } else {
                     listOf(CardBenefit(stringResource(R.string.optimize_after_kept_no_visible_body), Icons.Filled.Tune, PluviaTheme.colors.textMuted))
                 },
-                primary = CardAction(stringResource(R.string.optimize_keep_going)) { answer(OptimizeCards.ACTION_KEEP_GOING) },
-                secondary = CardAction(stringResource(R.string.optimize_happy)) { answer(OptimizeCards.ACTION_HAPPY) },
-                tertiary = CardAction(stringResource(R.string.optimize_undo)) { answer(OptimizeCards.ACTION_UNDO) },
+                // With nothing next on the server, the step is kept or undone; there is nothing to keep going to.
+                primary = if (card.nothingNext) {
+                    CardAction(stringResource(R.string.optimize_happy)) { answer(OptimizeCards.ACTION_HAPPY) }
+                } else {
+                    CardAction(stringResource(R.string.optimize_keep_going)) { answer(OptimizeCards.ACTION_KEEP_GOING) }
+                },
+                secondary = if (card.nothingNext) {
+                    CardAction(stringResource(R.string.optimize_undo)) { answer(OptimizeCards.ACTION_UNDO) }
+                } else {
+                    CardAction(stringResource(R.string.optimize_happy)) { answer(OptimizeCards.ACTION_HAPPY) }
+                },
+                tertiary = if (card.nothingNext) null else CardAction(stringResource(R.string.optimize_undo)) { answer(OptimizeCards.ACTION_UNDO) },
             )
         }
         OptimizeCard.NO_CHANGE -> CardSpec(
@@ -310,8 +320,12 @@ private fun OptimizeCardDialog(request: OptimizeController.CardRequest) {
                 ?: stringResource(R.string.optimize_after_no_change),
             accent = OptimizeAccent(Icons.Filled.Tune, PluviaTheme.colors.textMuted),
             showEntitlement = showEntitlement,
-            primary = CardAction(stringResource(R.string.optimize_keep_going)) { answer(OptimizeCards.ACTION_KEEP_GOING) },
-            secondary = CardAction(stringResource(R.string.optimize_stop_here)) { answer(OptimizeCards.ACTION_STOP) },
+            primary = if (card.nothingNext) {
+                CardAction(stringResource(R.string.optimize_stop_here)) { answer(OptimizeCards.ACTION_STOP) }
+            } else {
+                CardAction(stringResource(R.string.optimize_keep_going)) { answer(OptimizeCards.ACTION_KEEP_GOING) }
+            },
+            secondary = if (card.nothingNext) null else CardAction(stringResource(R.string.optimize_stop_here)) { answer(OptimizeCards.ACTION_STOP) },
         )
         OptimizeCard.WORSE -> CardSpec(
             title = if (card.outcome == OptimizeCard.OUTCOME_CRASH) {
@@ -511,6 +525,8 @@ private fun OptimizeCardLayout(
         properties = DialogProperties(usePlatformDefaultWidth = !landscape),
     ) {
         LaunchedEffect(focusKey) { primaryFocus.requestFocusAfterLayout() }
+        val contentScroll = rememberScrollState()
+        val contentKeys = if (chooser == null) Modifier.dialogScrollKeys(contentScroll) else Modifier
 
         GradientBorderSurface(
             modifier = Modifier
@@ -522,13 +538,13 @@ private fun OptimizeCardLayout(
         ) {
             if (landscape) {
                 Row(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(24.dp).then(contentKeys),
                     horizontalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
                     Column(
                         modifier = Modifier
                             .weight(1.2f)
-                            .verticalScroll(rememberScrollState()),
+                            .verticalScroll(contentScroll),
                         content = content,
                     )
                     Column(
@@ -543,13 +559,14 @@ private fun OptimizeCardLayout(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
+                        .padding(24.dp)
+                        .then(contentKeys),
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f, fill = false)
-                            .verticalScroll(rememberScrollState()),
+                            .verticalScroll(contentScroll),
                         content = content,
                     )
                     Spacer(modifier = Modifier.height(20.dp))

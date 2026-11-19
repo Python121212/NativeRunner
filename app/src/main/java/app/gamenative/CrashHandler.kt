@@ -1,7 +1,6 @@
 package app.gamenative
 
 import android.content.Context
-import app.gamenative.utils.PersistentLog
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -10,6 +9,7 @@ import java.io.StringWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import timber.log.Timber
 
 /**
  * A local running crash handler.
@@ -34,7 +34,9 @@ class CrashHandler(
         private fun logcatCommand(count: Int): String = "logcat -d -t $count --pid=${android.os.Process.myPid()}"
 
         fun initialize(context: Context) {
-            val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+            // a second init (each Robolectric app boot) must not wrap the previous CrashHandler, or the chain grows per boot.
+            val current = Thread.getDefaultUncaughtExceptionHandler()
+            val defaultHandler = if (current is CrashHandler) current.defaultHandler else current
             val crashHandler = CrashHandler(context.applicationContext, defaultHandler)
             Thread.setDefaultUncaughtExceptionHandler(crashHandler)
         }
@@ -93,21 +95,6 @@ class CrashHandler(
     override fun uncaughtException(thread: Thread, throwable: Throwable) {
         PrefManager.recentlyCrashed = true
 
-        // The same reason and stack go into the persistent log: a native crash or a kill leaves no
-        // chance to write the crash file, but the log lines before it are already on disk.
-        runCatching {
-            PersistentLog.write(
-                android.util.Log.ERROR,
-                "CrashHandler",
-                "uncaught: ${throwable.javaClass.name}: ${throwable.message}",
-            )
-            PersistentLog.write(
-                android.util.Log.ERROR,
-                "CrashHandler",
-                android.util.Log.getStackTraceString(throwable),
-            )
-        }
-
         saveCrashToFile(throwable)
         defaultHandler?.uncaughtException(thread, throwable)
     }
@@ -145,7 +132,8 @@ class CrashHandler(
 
             cleanupOldCrashFiles()
         } catch (e: Exception) {
-            defaultHandler?.uncaughtException(Thread.currentThread(), throwable)
+            // no dispatch here: uncaughtException hands the crash to defaultHandler right after this.
+            Timber.e(e, "Failed to save crash report")
         }
     }
 }
