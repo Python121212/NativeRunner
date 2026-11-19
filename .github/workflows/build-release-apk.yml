@@ -378,13 +378,23 @@ jobs:
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          cat > /tmp/release-notes.md <<NOTES
-          Automated release-signed build of `${{ github.sha }}` — version ${APK_VERSION} (versionCode ${APK_VERSION_CODE}), flavors: ${{ inputs.flavors || 'legacy' }}.
+          # Quoted heredoc: markdown backticks stay literal (an unquoted heredoc would
+          # run them as command substitution and silently drop both the sha and the
+          # fingerprint). Values that must be filled in are placeholder-substituted.
+          cat > /tmp/release-notes.md <<'NOTES'
+          Automated release-signed build of `@SHA@` — version @VERSION@ (versionCode @CODE@), flavors: @FLAVORS@.
 
           - 署名: ci/release のリリース鍵（自己署名）。証明書 SHA-256 は `81:39:18:80:38:67:13:F8:55:26:C2:20:80:FF:A4:3A:80:0A:B2:8B:75:5C:DA:B9:53:4B:7A:2B:CD:6F:E8:E6` で、apk-20 以降ずっと同じ鍵です
           - 上流 GameNative とは署名が異なるため、上流版からの上書き更新はできません（本リポジトリの前回版からは上書きできます）
-          - ビルドログ: ${RUN_URL}
+          - ビルドログ: @RUN_URL@
           NOTES
+          sed -i \
+            -e "s|@SHA@|${{ github.sha }}|g" \
+            -e "s|@VERSION@|${APK_VERSION}|g" \
+            -e "s|@CODE@|${APK_VERSION_CODE}|g" \
+            -e "s|@FLAVORS@|${{ inputs.flavors || 'legacy' }}|g" \
+            -e "s|@RUN_URL@|${RUN_URL}|g" \
+            /tmp/release-notes.md
           gh release create "$TAG" out/*.apk \
             --target "${{ github.sha }}" \
             --title "GameNative ${APK_VERSION} (build #${{ github.run_number }})" \
