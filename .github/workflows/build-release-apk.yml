@@ -313,20 +313,35 @@ jobs:
           EXPECTED_CERT_SHA256: "81:39:18:80:38:67:13:F8:55:26:C2:20:80:FF:A4:3A:80:0A:B2:8B:75:5C:DA:B9:53:4B:7A:2B:CD:6F:E8:E6"
         run: |
           set -euo pipefail
-          EXPECTED="$(echo "$EXPECTED_CERT_SHA256" | tr -d ' ' | tr 'A-F' 'a-f')"
+          # Compare bare hex, so the pinned value can be written in the familiar
+          # 81:39:18:... form printed by keytool / apksigner.
+          EXPECTED="$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ': ' | tr 'A-F' 'a-f')"
           BUILD_TOOLS="$(ls -d "${ANDROID_HOME:-$ANDROID_SDK_ROOT}"/build-tools/*/ 2>/dev/null | sort -V | tail -1)"
           APKSIGNER="${BUILD_TOOLS}apksigner"
+          status=0
           for apk in $(find app/build/outputs/apk -name '*.apk'); do
             echo "== $apk"
-            "$APKSIGNER" verify --print-certs "$apk"
-            ACTUAL="$("$APKSIGNER" verify --print-certs "$apk" \
-              | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+            # apksigner writes the certificate summary to stdout and some warnings to
+            # stderr, and the wording differs slightly between build-tools versions, so
+            # keep both streams and match the digest line loosely.
+            CERTS="$("$APKSIGNER" verify --print-certs "$apk" 2>&1 || true)"
+            printf '%s\n' "$CERTS"
+            ACTUAL="$(printf '%s\n' "$CERTS" \
+              | grep -i 'sha-256 digest' | head -1 \
+              | sed -E 's/.*digest:[[:space:]]*//' | tr -d ': \r' | tr 'A-F' 'a-f')"
+            if [ -z "$ACTUAL" ]; then
+              echo "::error title=signing-key-unreadable::could not read the SHA-256 digest from $apk"
+              status=1
+              continue
+            fi
             if [ "$ACTUAL" != "$EXPECTED" ]; then
               echo "::error title=signing-key-changed::$apk is signed with $ACTUAL, expected $EXPECTED (over-the-air update would fail)"
-              exit 1
+              status=1
+              continue
             fi
             echo "   signing certificate matches the pinned release key"
           done
+          exit "$status"
 
       - name: Stage APKs
         run: |
