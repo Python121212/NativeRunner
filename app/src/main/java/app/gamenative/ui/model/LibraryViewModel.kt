@@ -996,6 +996,7 @@ class LibraryViewModel @Inject constructor(
 
             fun lastPlayedFor(appId: String): Long = playHistoryByAppId[appId] ?: 0L
 
+
             val licensedDepotMap = SteamService.buildLicensedDepotMap(filteredSteamApps)
 
             // Added this to avoid duplicate from custom imported steam game
@@ -1048,7 +1049,13 @@ class LibraryViewModel @Inject constructor(
             val customEntries = customGameItems
                 .filter { !steamEntriesAppIds.contains(it.appId) } // Filter out imported steam appId
                 .filter { passesStatsFilters(currentState, it.gameSource, it.name) }
-                .map { LibraryEntry(it, true, lastPlayed = lastPlayedFor(it.appId)) }
+                .map { item ->
+                    LibraryEntry(
+                        item,
+                        true,
+                        lastPlayed = lastPlayedFor(item.appId),
+                    )
+                }
 
             // Filter GOG games
             val filteredGOGGames = gogGameList

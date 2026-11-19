@@ -13,10 +13,6 @@ import com.alorma.compose.settings.ui.SettingsGroup
 fun AdvancedTabContent(state: ContainerConfigState) {
     val config = state.config.value
 
-    // The diagnosis is on the top bar of this dialog, so it is reachable from every tab; this
-    // section only holds what is specific to the settings themselves.
-    AiSettingsSection()
-
     SettingsGroup() {
         SettingsListDropdown(
             colors = settingsTileColors(),

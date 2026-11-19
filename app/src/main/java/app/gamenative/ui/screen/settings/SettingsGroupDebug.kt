@@ -12,7 +12,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -32,11 +31,9 @@ import app.gamenative.ui.component.settings.SettingsMenuLink
 import app.gamenative.ui.component.settings.SettingsSwitch
 import app.gamenative.PrefManager
 import app.gamenative.ui.util.SnackbarManager
-import app.gamenative.utils.LogExporter
 import app.gamenative.ui.theme.settingsTileColorsAlt
 import com.winlator.PrefManager as WinlatorPrefManager
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlinx.serialization.decodeFromString
@@ -180,38 +177,7 @@ fun SettingsGroupDebug() {
         )
     }
 
-    /* Persistent log export: one file with the app log, crash reports, wine log and logcat */
-    val exportScope = rememberCoroutineScope()
-    var exportingLogs by remember { mutableStateOf(false) }
-
     SettingsGroup() {
-        SettingsMenuLink(
-            colors = settingsTileColors(),
-            title = { Text(text = stringResource(R.string.settings_debug_export_logs_title)) },
-            subtitle = {
-                Text(
-                    text = if (exportingLogs)
-                        stringResource(R.string.settings_debug_export_logs_progress)
-                    else
-                        stringResource(R.string.settings_debug_export_logs_subtitle)
-                )
-            },
-            enabled = !exportingLogs,
-            onClick = {
-                if (!isPreview && !exportingLogs) {
-                    exportingLogs = true
-                    exportScope.launch {
-                        val file = LogExporter.export(context)
-                        exportingLogs = false
-                        if (file == null) {
-                            SnackbarManager.show(context.getString(R.string.log_export_failed))
-                        } else {
-                            LogExporter.share(context, file)
-                        }
-                    }
-                }
-            },
-        )
         SettingsMenuLink(
             colors = settingsTileColors(),
             title = { Text(text = stringResource(R.string.settings_save_logcat_title)) },

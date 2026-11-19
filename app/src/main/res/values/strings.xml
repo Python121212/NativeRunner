@@ -15,15 +15,15 @@
     <string name="steam_2fa_use_guard_totp">Or use 2-factor auth code</string>
     <string name="steam_install_space_prompt">The app being installed has the following space requirements. Would you like to proceed?\n\n\tDownload Size: %1$s\n\tSize on Disk: %2$s\n\tAvailable Space: %3$s</string>
     <string name="steam_install_space">Download Size: %1$s\nSize on Disk: %2$s\nAvailable Space: %3$s</string>
+    <string name="steam_installing_branch">Installing the \"%1$s\" branch</string>
     <string name="steam_install_not_enough_space">The app being installed needs %1$s of space but there is only %2$s left on this device</string>
-    <string name="steam_cancel_download_message">Are you sure you want to cancel the download of the app?</string>
-    <string name="steam_delete_download_message">Delete all downloaded data for this game?</string>
+    <string name="library_cancel_download_message">Are you sure you want to cancel the download of the app?</string>
     <string name="steam_imagefs_download_install_title">Download &amp; Install ImageFS</string>
     <string name="steam_imagefs_download_install_message">The Ubuntu image needs to be downloaded and installed before being able to edit the configuration. This operation might take a few minutes. Would you like to continue?</string>
     <string name="steam_imagefs_install_title">Install ImageFS</string>
     <string name="steam_imagefs_install_message">The Ubuntu image needs to be installed before being able to edit the configuration. This operation might take a few minutes. Would you like to continue?</string>
     <string name="steam_reset_container_title">Reset Container</string>
-    <string name="steam_reset_container_message">This will reset your container to the default configuration.</string>
+    <string name="library_reset_container_message">This will reset your container to the default configuration.</string>
     <string name="base_app_reset_container_title">Reset Container?</string>
     <string name="base_app_reset_container_confirm">Reset</string>
     <string name="steam_verify_files_title">Verify Files</string>
@@ -33,17 +33,20 @@
     <string name="steam_update_message">Please ensure your saves are uploaded to the cloud or backed up before updating, as they may be overwritten otherwise.</string>
     <string name="steam_not_logged_in">You must be logged into Steam to use this feature</string>
     <string name="steam_storage_permission_required">Storage permission required</string>
-    <string name="steam_container_reset_success">Container reset to defaults</string>
+    <string name="library_container_reset_success">Container reset to defaults</string>
     <string name="steam_imagefs_installed">ImageFS installed. Please try editing container again.</string>
     <string name="steam_imagefs_install_failed">Failed to install ImageFS: %s</string>
+    <string name="steam_imagefs_open_container_title">Set Up Wine for This Container</string>
+    <string name="steam_imagefs_open_container_message_imagefs_only">To open this container in Wine, the Wine Ubuntu image needs to be downloaded and installed (~600 MB, one-time, shared by all games). Continue?</string>
+    <string name="steam_imagefs_open_container_message_prefix_only">To open this container in Wine for the first time, a Windows prefix needs to be extracted into the container (~1.5 GB of additional storage, one-time per container). Continue?</string>
+    <string name="steam_imagefs_open_container_message_full">To open this container in Wine for the first time, two one-time setup steps will run: the Wine Ubuntu image (~600 MB, shared by all games) and a Windows prefix for this container (~1.5 GB). Continue?</string>
     <string name="steam_uninstall_game_title">Uninstall Game</string>
     <string name="steam_uninstall_confirmation_message">Are you sure you want to uninstall %1$s? This action cannot be undone.</string>
-    <string name="steam_uninstall_success">%1$s has been uninstalled</string>
+    <string name="library_uninstall_success">%1$s has been uninstalled</string>
     <string name="steam_uninstall_failed">Failed to uninstall game</string>
     <string name="deleting">Deleting…</string>
     <string name="amazon_uninstall_game_title">Uninstall Game</string>
     <string name="amazon_uninstall_confirmation_message">Are you sure you want to uninstall %1$s? This action cannot be undone.</string>
-    <string name="amazon_install_game_title">Download Game</string>
     <string name="amazon_install_confirmation_message">The app being installed has the following space requirements. Would you like to proceed?\n\n\tDownload Size: %1$s\n\tAvailable Space: %2$s</string>
     <string name="amazon_verify_files_title">Verify Files</string>
     <string name="amazon_verify_files_message">This will check all installed files against the download manifest to detect missing or corrupted files.\n\nThis may take a while for large games.</string>
@@ -54,8 +57,6 @@
     <string name="amazon_verify_error">Verification failed: %1$s</string>
     <string name="gog_uninstall_game_title">Uninstall Game</string>
     <string name="gog_uninstall_confirmation_message">Are you sure you want to uninstall %1$s? This action cannot be undone.</string>
-    <string name="gog_install_game_title">Download Game</string>
-    <string name="gog_install_confirmation_message">The app being installed has the following space requirements. Would you like to proceed?\n\n\tDownload Size: %1$s\n\tAvailable Space: %2$s</string>
     <string name="gog_dlc_sizes">%1$s download • %2$s install</string>
     <string name="gog_dlc_not_installable">Not available through GOG Galaxy. Download it from the bonus content in your GOG library.</string>
     <string name="gog_dlc_load_failed">Could not load DLC: %1$s</string>
@@ -65,17 +66,15 @@
     <string name="gog_dlc_unresolved">Could not load this DLC. Retry to install it.</string>
     <string name="epic_uninstall_game_title">Uninstall Game</string>
     <string name="epic_uninstall_game_message">Are you sure you want to uninstall %1$s? This action cannot be undone.</string>
-    <string name="epic_install_game_title">Download Game</string>
-    <string name="epic_install_game_message">The app being installed has the following space requirements. Would you like to proceed?\n\n\tDownload Size: %1$s\n\tSize on Disk: %2$s\n\tAvailable Space: %3$s</string>
-    <string name="epic_game_not_found">Game not found</string>
-    <string name="epic_starting_download">Starting download: %1$s</string>
+    <string name="library_game_not_found">Game not found</string>
+    <string name="library_starting_download">Starting download: %1$s</string>
     <string name="epic_starting_download_with_dlcs">Starting download: %1$s + DLCs</string>
-    <string name="epic_download_failed">Failed to start download: %1$s</string>
-    <string name="epic_download_error">Download error: %1$s</string>
-    <string name="epic_cancel_download_message">Are you sure you want to cancel the download of the app?</string>
-    <string name="epic_delete_download_message">Delete all downloaded data for this game?</string>
-    <string name="epic_uninstall_failed">Uninstall failed: %1$s</string>
+    <string name="library_download_start_failed">Failed to start download: %1$s</string>
+    <string name="library_download_error">Download error: %1$s</string>
+    <string name="library_uninstall_failed">Uninstall failed: %1$s</string>
     <string name="epic_uninstall_error">Uninstall error: %1$s</string>
+    <string name="epic_dlc_no_download">No download available</string>
+    <string name="epic_dlc_download_failed">Could not download: %1$s. Open Manage DLC to try again.</string>
     <string name="steam_never">Never</string>
     <string name="steam_continue">Continue</string>
     <string name="header_img_desc">App header image</string>
@@ -241,6 +240,16 @@
     <string name="intent_launch_failed">Could not launch game: invalid launch shortcut</string>
     <string name="intent_launch_steam_pending">Game will launch when Steam connects</string>
     <string name="intent_launch_service_pending">Game will launch when service is ready</string>
+    <!--webview host: surfaced by ChromiumVersionGate on boot if chromium < min OR multi-profile unsupported -->
+    <string name="webview_unsupported_chromium">HTML5 runtime unavailable — WebView %1$s is too old (Chromium %2$d or newer required)</string>
+    <!--webview host: surfaced by WebViewScreen on compose-entry if gate failed at boot -->
+    <string name="webview_runtime_unavailable">HTML5 runtime unavailable on this device</string>
+    <!--webview host: surfaced by WebViewScreen when WebViewContainer missing/corrupt -->
+    <string name="webview_container_not_found">HTML5 game container missing or corrupt</string>
+    <!--webview host: data-url save export via DownloadListener (WebViewSetup) -->
+    <string name="webview_download_saved">Saved to Downloads/%1$s</string>
+    <string name="webview_download_unsupported_scheme">Download skipped (unsupported scheme)</string>
+    <string name="webview_download_failed">Download failed: %1$s</string>
     <string name="intent_launch_steam_login_failed">Steam login failed — game launch cancelled</string>
     <string name="intent_launch_service_timeout">Game service failed to start — game launch cancelled</string>
     <string name="back_press_exit_warning">Press back again to exit</string>
@@ -355,6 +364,8 @@
     <string name="control_profile_delete_title">Delete control profile?</string>
     <string name="control_profile_delete_message">Remove “%1$s” from the library? Games already configured from it will keep their controls.</string>
     <string name="more_options">More options</string>
+    <!--HTML5 QuickMenu items -->
+    <string name="quickmenu_edit_overlay">Edit Overlay</string>
     <string name="controller_disconnected">Disconnected</string>
     <string name="reset_onscreen_controls">Reset On-Screen Controls</string>
     <string name="open_navigation_menu">Open Navigation Menu</string>
@@ -713,59 +724,6 @@
 
     <!-- Settings -->
     <string name="settings_save_logcat_subtitle">Saves a snapshot of the logcat only for this app\'s PID</string>
-    <string name="option_export_launch_log">Export launch log</string>
-    <string name="option_ai_config_fix">AI check settings</string>
-    <string name="game_launch_log_missing">No launch log for this game yet</string>
-    <string name="game_launch_log_share_title">Share GameNative launch log</string>
-    <string name="game_launch_log_share_text">Launch log of this game (this game only)</string>
-    <string name="ai_diagnosis_run_hint">Reads the last launch log of this game and proposes settings</string>
-    <string name="ai_diagnosis_log_hint">This game\'s own log only, no other game</string>
-    <string name="ai_advice_title">AI settings check</string>
-    <string name="ai_advice_analysing">Reading the launch log…</string>
-    <string name="ai_advice_source_rules">From the on-device rules (no key needed)</string>
-    <string name="ai_advice_source_llm">From the AI model you configured</string>
-    <string name="ai_advice_nothing_found">No known cause was found. Try running the game once with the log, then check again.</string>
-    <string name="ai_advice_unset">(not set)</string>
-    <string name="ai_advice_show_facts">Show the facts used (%1$d)</string>
-    <string name="ai_advice_hide_facts">Hide the facts used</string>
-    <string name="ai_advice_apply">Apply %1$d</string>
-    <string name="ai_advice_applied">Applied %1$d setting(s)</string>
-    <string name="ai_advice_apply_failed">Nothing was applied</string>
-    <string name="container_config_ai_diagnosis">AI settings check</string>
-    <string name="ai_advice_settings_title">AI settings check</string>
-    <string name="ai_advice_settings_subtitle">Uses the launch log, the device and the GPU to propose settings</string>
-    <string name="ai_advice_use_llm_title">Send the log to an AI model</string>
-    <string name="ai_advice_use_llm_subtitle">Off: only the built-in rules run, nothing leaves the device</string>
-    <string name="ai_advice_api_key_title">API key</string>
-    <string name="ai_advice_api_key_subtitle">Stored encrypted on this device. Only sent to the endpoint below</string>
-    <string name="ai_advice_api_key_empty">Not set — the built-in rules are used</string>
-    <string name="ai_advice_api_url_title">Endpoint</string>
-    <string name="ai_advice_model_title">Model</string>
-    <string name="ai_advice_test_title">Test the endpoint</string>
-    <string name="ai_advice_test_ok">The endpoint answered</string>
-    <string name="ai_advice_test_failed">The endpoint did not answer</string>
-    <string name="ai_advice_test_need_key">Add an API key first</string>
-    <string name="ai_advice_clear_key">Remove the key</string>
-
-    <!-- Launch log viewer -->
-    <string name="option_view_launch_log">View launch logs</string>
-    <string name="launch_log_title">Launch logs</string>
-    <string name="launch_log_reading">Reading the log…</string>
-    <string name="launch_log_copy">Copy</string>
-    <string name="launch_log_copied">Log copied</string>
-    <string name="launch_log_share">Share</string>
-    <string name="launch_log_ask_ai">Ask AI</string>
-    <string name="launch_log_ask_ai_title">Ask about this launch</string>
-    <string name="launch_log_ask_ai_hint">e.g. why did it stop at the launcher?</string>
-    <string name="launch_log_ask_ai_send">Ask</string>
-    <string name="ai_advice_answer">Answer</string>
-    <string name="ai_advice_llm_failed">The model could not be reached (%1$s); only the on-device rules ran.</string>
-    <string name="settings_debug_export_logs_title">Export logs</string>
-    <string name="settings_debug_export_logs_subtitle">One file: app log (survives a crash or reboot), crash reports, wine log and logcat</string>
-    <string name="settings_debug_export_logs_progress">Collecting logs…</string>
-    <string name="log_export_failed">Could not build the log file</string>
-    <string name="log_export_share_title">Share GameNative logs</string>
-    <string name="log_export_share_text">GameNative log bundle</string>
     <string name="settings_save_logcat_title">Save logcat</string>
     <string name="settings_achievement_show_notification">Show Achievement Notifications</string>
     <string name="settings_achievement_play_sound">Play Achievement Sound</string>
@@ -968,6 +926,22 @@
     <string name="value">Value</string>
     <string name="no_more_known_variables">No more known variables</string>
     <string name="container_variant">Container Variant</string>
+    <!-- HTML5 QuickMenu row label (replaces former Input Mode dropdown) -->
+    <!-- perf: render-scale (devicePixelRatio) override dropdown for HTML5 containers. -->
+    <string name="render_scale_label">Render Scale (HTML5 backend only)</string>
+    <string name="render_scale_description">Lower values render fewer pixels for better performance and battery; higher values look sharper. Takes effect on next launch. No effect on Wine containers.</string>
+    <string name="render_scale_device">Device default</string>
+    <string name="render_scale_0_5x">0.5× (lowest, best perf)</string>
+    <string name="render_scale_0_75x">0.75×</string>
+    <string name="render_scale_1x">1×</string>
+    <string name="render_scale_1_5x">1.5×</string>
+    <string name="render_scale_2x">2×</string>
+    <string name="render_scale_3x">3×</string>
+    <string name="render_scale_4x">4× (highest, worst perf)</string>
+    <string name="html5_controller_tab_overlay_opacity_value">Overlay Opacity: %1$d%%</string>
+    <string name="html5_controller_tab_overlay_visible">Show Onscreen Overlay</string>
+    <!-- snackbar shown when user taps Edit in the overlay toolbar without selecting an element first -->
+    <string name="html5_overlay_select_element_first">Tap an overlay element first, then Edit</string>
     <string name="wine_version">Wine Version</string>
     <string name="exec_arguments">Exec Arguments</string>
     <string name="exec_arguments_example">Example: -dx11</string>
@@ -1192,6 +1166,11 @@
     <string name="gesture_show_cursor_touchscreen_mode">Show Cursor in Touchscreen Mode</string>
     <string name="gesture_show_cursor_touchscreen_mode_subtitle">Keep the mouse cursor visible while touchscreen gestures are active</string>
 
+    <!-- HTML5-only gesture extras (cursor mode + open-quick-menu action) -->
+    <string name="gesture_cursor_mode">Relative cursor</string>
+    <string name="gesture_cursor_mode_relative_subtitle">Move a tracked cursor instead of dispatching at finger position</string>
+    <string name="gesture_action_open_quick_menu">Open Quick Menu</string>
+
     <string name="external_display_input">External Display Input</string>
     <string name="external_display_input_subtitle">Choose how a connected presentation display should behave</string>
     <string name="external_display_mode_off">Do not use external display</string>
@@ -1280,6 +1259,8 @@
     <string name="settings_accounts_ea_title">EA account</string>
     <string name="settings_accounts_rockstar_title">Rockstar account</string>
     <string name="settings_accounts_ubisoft_title">Ubisoft account</string>
+    <string name="settings_accounts_ubisoft_uploads_title">Upload Ubisoft cloud saves</string>
+    <string name="settings_accounts_ubisoft_uploads_subtitle">Untested. Sends saves from this device to your Ubisoft account. Saves from other devices can be replaced.</string>
     <string name="gamenative_account_title">GameNative account</string>
     <string name="gamenative_account_sign_in">Sign in</string>
     <string name="gamenative_account_sign_in_subtitle">Sign in to see your plan and manage your subscription.</string>
@@ -1476,6 +1457,28 @@
     <string name="settings_info_boot_ads_subtitle">Keeping this on helps support GameNative\'s development. It never slows down game launches or affects you in any way.</string>
     <string name="settings_info_boot_recs_title">Game recommendations on loading screens</string>
     <string name="settings_info_boot_recs_subtitle">Show a game you might like while a game boots, when there is no sponsor card.</string>
+    <string name="settings_interface_verbose_boot_title">Detailed launch progress</string>
+    <string name="settings_interface_verbose_boot_subtitle">Show the current step and a real progress bar while a container boots</string>
+    <string name="boot_progress_preparing">Preparing container</string>
+    <string name="boot_progress_wine_files">Setting up Wine files</string>
+    <string name="boot_progress_graphics">Setting up graphics driver</string>
+    <string name="boot_progress_environment">Starting Wine environment</string>
+    <string name="boot_progress_mono">Installing Mono</string>
+    <string name="boot_progress_drm">Handling DRM</string>
+    <string name="boot_progress_prereqs">Installing prerequisites</string>
+    <string name="boot_progress_launch">Launching game</string>
+    <string name="boot_progress_downloading">downloading %1$s %2$d%%</string>
+    <string name="boot_progress_unpacking">unpacking %1$s</string>
+    <string name="boot_progress_extracting_xaudio">extracting XAudio DLLs</string>
+    <string name="boot_progress_steam_signing_in">Steam: signing in</string>
+    <string name="boot_progress_steam_downloading">Steam: downloading %1$.1f / %2$.1f MB</string>
+    <string name="boot_progress_steam_waiting">Steam: waiting for the DRM service</string>
+    <string name="boot_progress_steam_file">file %1$d of %2$d</string>
+    <string name="boot_progress_reading_interfaces">reading interfaces</string>
+    <string name="boot_progress_graphics_driver">graphics driver %1$s</string>
+    <string name="boot_progress_dxwrapper">dxwrapper %1$s</string>
+    <string name="boot_progress_component">component %1$s</string>
+    <string name="boot_progress_core_driver">core driver %1$s</string>
     <string name="settings_info_usage_analytics_title">Usage analytics</string>
     <string name="settings_info_usage_analytics_subtitle">We never track personal information. Disabling this stops non-essential analytics, however core game performance data is still collected as a legitimate interest to improve compatibility.</string>
 
@@ -1691,6 +1694,12 @@
     <string name="container_storage_uninstall_game_only_message">This uninstalls %1$s and removes its game files. No container will be deleted.</string>
     <string name="container_storage_uninstall_success">Uninstalled %1$s</string>
     <string name="container_storage_uninstall_failed">Failed to uninstall game: %1$s</string>
+    <string name="container_storage_reclaim_button">Reclaim Wine storage</string>
+    <string name="container_storage_reclaim_title">Reclaim Wine storage?</string>
+    <string name="container_storage_reclaim_message">Deletes the Wine distribution directories (windows, Program Files, Program Files (x86)) for %1$s. Saves and registry settings are preserved. The Wine prefix rebuilds itself on the next Wine backend launch (~30 sec).</string>
+    <string name="container_storage_reclaim_success">Reclaimed %2$s from %1$s</string>
+    <string name="container_storage_reclaim_noop">Nothing to reclaim for %1$s</string>
+    <string name="container_storage_reclaim_failed">Failed to reclaim storage: %1$s</string>
     <string name="container_storage_move_to_external_button">Move to external</string>
     <string name="container_storage_move_to_internal_button">Move to internal</string>
     <string name="container_storage_move_success">Moved %1$s to %2$s storage</string>
@@ -1733,16 +1742,18 @@
 
     <!-- LibraryAppScreen: Dialogs -->
     <string name="library_not_enough_space_message">The app being installed needs %1$s of space but there is only %2$s left on this device</string>
-    <string name="library_download_prompt_message">The app being installed has the following space requirements. Would you like to proceed?\n\n\tDownload Size: %1$s\n\tSize on Disk: %2$s\n\tAvailable Space: %3$s</string>
-    <string name="library_cancel_download_message">Are you sure you want to cancel the download of the app?</string>
     <string name="library_delete_download_message">Delete all downloaded data for this game?</string>
+    <string name="library_cancel_download_keep_game_message">Stop the download for %1$s? The installed game is kept.</string>
+    <string name="library_download_completed">Download completed: %1$s</string>
+    <string name="library_download_canceled">Download canceled</string>
+    <string name="library_delete_download_failed">Failed to delete download: %1$s</string>
+    <string name="library_syncing_saves">Syncing saves…</string>
     <string name="library_delete_app_message">Are you sure you want to delete this app?</string>
     <string name="library_download_install_imagefs_title">Download &amp; Install ImageFS</string>
     <string name="library_download_install_imagefs_message">The Ubuntu image needs to be downloaded and installed before being able to edit the configuration. This operation might take a few minutes. Would you like to continue?</string>
     <string name="library_install_imagefs_title">Install ImageFS</string>
     <string name="library_install_imagefs_message">The Ubuntu image needs to be installed before being able to edit the configuration. This operation might take a few minutes. Would you like to continue?</string>
     <string name="library_reset_container_title">Reset Container</string>
-    <string name="library_reset_container_message">This will reset your container to the default configuration.</string>
     <string name="library_verify_files_title">Verify Files</string>
     <string name="library_verify_files_message">Please ensure your saves are uploaded to the cloud or backed up before verifying, as they may be overwritten otherwise.</string>
     <string name="library_update_title">Update</string>
@@ -2265,6 +2276,11 @@
 
     <!-- App option menu labels -->
     <string name="option_open_store_page">Open store page</string>
+    <string name="store_page_open_failed_title">Couldn’t open store page</string>
+    <string name="store_page_open_failed_message">GameNative couldn’t open the store page for this game.</string>
+    <string name="store_page_link_clipboard_label">Store page link</string>
+    <string name="store_page_link_copied">Store page link copied</string>
+    <string name="copy_link">Copy link</string>
     <string name="option_export_for_frontend">Export for frontend</string>
     <string name="option_copy_launch_link">Copy launch link</string>
     <string name="option_open_container">Open container</string>
@@ -2340,6 +2356,7 @@
     <string name="optimize_after_helped_stutter">That change helped: fewer stutters</string>
     <string name="optimize_after_helped_fps">That change helped: higher frame rate</string>
     <string name="optimize_after_helped_stable">That change helped: more stable performance</string>
+    <string name="optimize_after_helped_cooler">That change helped: less heat and longer battery life</string>
     <string name="optimize_after_kept_no_visible">No change you can see yet</string>
     <string name="optimize_after_kept_no_visible_body">We kept this step and will try the next one on your next launch.</string>
     <string name="optimize_measured_fps">+%1$d %% frame rate</string>
@@ -2466,6 +2483,7 @@
     <string name="option_test_graphics">Test graphics</string>
     <string name="option_play_with_diagnostics">Diagnostic Run</string>
     <string name="option_share_diagnostics">Share diagnostics</string>
+    <string name="option_export_run_metrics">Export last run metrics</string>
     <string name="option_ai_debug_run">Get AI help</string>
     <string name="debug_report_title">AI Debug Report</string>
     <string name="debug_report_summary">%1$s · %2$s</string>
@@ -3143,6 +3161,57 @@
     <string name="radial_menu_preset_common">Common</string>
     <string name="radial_menu_preset_weapons">Weapons</string>
     <string name="gesture_action_open_radial_menu">Open radial menu</string>
+
+    <!--html5 opt-in snackbar surfaces. %1$s is the install path. -->
+    <string name="html5_optin_no_engine">No supported HTML5 engine found at %1$s. Expected RMMV, RMMZ, Construct 3, or a package.nw zip.</string>
+    <string name="html5_optin_install_path_unresolvable">HTML5 opt-in could not resolve the install path.</string>
+
+    <!-- engine-changed snackbar — re-fingerprint on update detected a different engine than
+         before. %1$s = game name, %2$s = old engine, %3$s = new engine. -->
+    <string name="html5_engine_changed">%1$s engine updated: %2$s → %3$s. Container config refreshed.</string>
+    <string name="html5_switch_hint">Use HTML5 for better performance (beta)</string>
+
+    <!-- prophylactic shader-compile failure surface. fired when the WebView reports 3+ GLSL
+         uniform/varying overflow errors within 15s of launch (typically heavy WebGL2 titles
+         on Adreno where ANGLE-on-GL caps below the engine's needs). -->
+    <string name="html5_runtime_graphics_alloc_failure">Can\'t allocate graphics resources to this title in HTML5 mode. Please try switching to Wine in container settings.</string>
+
+    <!--: library card badge label for webview-runtime games. -->
+
+    <!-- detail screen "Runtime: WebView" InfoCard. -->
+    <string name="library_runtime_label">Runtime</string>
+    <string name="library_runtime_value_webview">WebView</string>
+
+    <!-- save sync failure snackbars. one entry per SaveSyncFailure.userFacingKey. -->
+    <string name="save_sync_lock">Save sync busy — try again in a moment.</string>
+    <string name="save_sync_corruption">Save file appears corrupt — sync paused.</string>
+    <string name="save_sync_missing">Save path not found — sync paused.</string>
+    <string name="save_sync_permission">Storage permission denied — sync paused.</string>
+    <string name="save_sync_other">Save sync failed. Your saves may not reach Steam Cloud.</string>
+    <string name="save_sync_incompatible">Cloud save format not supported by this device — sync paused. Android saves stay local.</string>
+    <!-- distinct from save_sync_missing — used when the engine pack profile
+         is absent (no fingerprint match → no engineId, or unknown engineId). this is "we
+         can't sync because we don't know what kind of game this is", not "the game's known-
+         supported but its save dir disappeared". snackbar fires at most once per launch. -->
+    <string name="save_sync_unsupported_game">This game doesn\'t support Steam Cloud</string>
+
+    <!--: pack:c3 fs-mode title falls back to Wine on Chromium <109. -->
+    <string name="html5_opfs_unsupported_falling_back_to_wine">this game needs Chromium 109+ for HTML5 saves — launching via Wine instead</string>
+
+    <!--: terra-engine title launching without the android ANGLE override; informational only,
+         we can't write the setting (needs WRITE_SECURE_SETTINGS via adb/Shizuku). -->
+    <string name="html5_angle_override_suggested">This game needs Android\'s ANGLE override to render. Via adb: settings put global angle_gl_driver_all_angle 1, then restart GameNative</string>
+
+    <!-- diagnostic shim (debug-only). timber-tagged, not snackbar'd. -->
+    <string name="html5_diagnostic_log_full">Diagnostic log rotated — older trace archived.</string>
+    <string name="html5_diagnostic_write_error">Diagnostic log write failed.</string>
+
+    <!-- shown when pack:electron asar opened but package.json lacks both productName and
+         name. graceful degradation — launch proceeds with non-electron sandbox;
+         app.getPath() surfaces NOT_IMPLEMENTED_V1. -->
+    <string name="html5_electron_missing_product_name">HTML5 profile: Electron title missing productName/name in package.json</string>
+
+    <!-- DEBUG-ONLY: Clear Steam Cloud dev action on SteamAppScreen. user-facing only in debug builds. -->
 
     <!-- Game Launch Tips -->
     <string name="game_launch_tip_1">Booting may take a few minutes on first launch</string>

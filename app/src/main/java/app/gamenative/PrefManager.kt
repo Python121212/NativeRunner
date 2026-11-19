@@ -431,6 +431,13 @@ object PrefManager {
             setPref(PULSEAUDIO_LOW_LATENCY, value)
         }
 
+    private val UBISOFT_CLOUD_SAVE_UPLOADS = booleanPreferencesKey("ubisoft_cloud_save_uploads")
+    var ubisoftCloudSaveUploads: Boolean
+        get() = getPref(UBISOFT_CLOUD_SAVE_UPLOADS, false)
+        set(value) {
+            setPref(UBISOFT_CLOUD_SAVE_UPLOADS, value)
+        }
+
     private val MIC_ENABLED = booleanPreferencesKey("mic_enabled")
     var micEnabled: Boolean
         get() = getPref(MIC_ENABLED, false)
@@ -647,6 +654,7 @@ object PrefManager {
         set(value) {
             setPref(SHOW_CONTROLLER_DEBUG_MENU, value)
         }
+
     private val LAUNCH_BIONIC_STEAM = booleanPreferencesKey("launch_bionic_steam")
     var launchBionicSteam: Boolean
         get() = getPref(LAUNCH_BIONIC_STEAM, false)
@@ -1595,61 +1603,6 @@ object PrefManager {
             setPref(HIDE_AI_FEATURES, value)
         }
 
-    /* AI 設定診断（端末内ルール＋任意の LLM） */
-
-    private val AI_CONFIG_API_KEY_ENC = byteArrayPreferencesKey("ai_config_api_key_enc")
-    private val AI_CONFIG_API_KEY = stringPreferencesKey("ai_config_api_key")
-
-    /** Optional key for an OpenAI-compatible endpoint. Empty means the on-device rules only. */
-    var aiConfigApiKey: String
-        get() {
-            val encryptedBytes = getPref(AI_CONFIG_API_KEY_ENC, ByteArray(0))
-            if (encryptedBytes.isNotEmpty()) {
-                return runCatching { String(Crypto.decrypt(encryptedBytes)) }.getOrDefault("")
-            }
-            val legacy = getPref(AI_CONFIG_API_KEY, "")
-            if (legacy.isNotEmpty()) {
-                runCatching {
-                    setPref(AI_CONFIG_API_KEY_ENC, Crypto.encrypt(legacy.toByteArray()))
-                    removePref(AI_CONFIG_API_KEY)
-                }
-            }
-            return legacy
-        }
-        set(value) {
-            if (value.isEmpty()) {
-                removePref(AI_CONFIG_API_KEY_ENC)
-            } else {
-                runCatching { setPref(AI_CONFIG_API_KEY_ENC, Crypto.encrypt(value.toByteArray())) }
-            }
-            removePref(AI_CONFIG_API_KEY)
-        }
-
-    private val AI_CONFIG_API_URL = stringPreferencesKey("ai_config_api_url")
-    var aiConfigApiUrl: String
-        get() = getPref(AI_CONFIG_API_URL, DEFAULT_AI_CONFIG_API_URL)
-        set(value) {
-            setPref(AI_CONFIG_API_URL, value.ifBlank { DEFAULT_AI_CONFIG_API_URL })
-        }
-
-    private val AI_CONFIG_MODEL = stringPreferencesKey("ai_config_model")
-    var aiConfigModel: String
-        get() = getPref(AI_CONFIG_MODEL, DEFAULT_AI_CONFIG_MODEL)
-        set(value) {
-            setPref(AI_CONFIG_MODEL, value.ifBlank { DEFAULT_AI_CONFIG_MODEL })
-        }
-
-    private val AI_CONFIG_USE_LLM = booleanPreferencesKey("ai_config_use_llm")
-    /** Off by default: the endpoint call is only made once the user opts in and adds a key. */
-    var aiConfigUseLlm: Boolean
-        get() = getPref(AI_CONFIG_USE_LLM, false)
-        set(value) {
-            setPref(AI_CONFIG_USE_LLM, value)
-        }
-
-    const val DEFAULT_AI_CONFIG_API_URL = "https://api.openai.com/v1/chat/completions"
-    const val DEFAULT_AI_CONFIG_MODEL = "gpt-4o-mini"
-
     // Show game recommendations in library
     private val SHOW_RECOMMENDATIONS = booleanPreferencesKey("show_recommendations")
     var showRecommendations: Boolean
@@ -1851,6 +1804,12 @@ object PrefManager {
         get() = getPref(STEAM_CONTROLLER_ENABLED, false)
         set(value) = setPref(STEAM_CONTROLLER_ENABLED, value)
 
+    // Detailed per-step reporting on the boot splash; off means the plain indeterminate bar
+    private val VERBOSE_BOOT_PROGRESS = booleanPreferencesKey("verbose_boot_progress")
+    var verboseBootProgress: Boolean
+        get() = getPref(VERBOSE_BOOT_PROGRESS, false)
+        set(value) = setPref(VERBOSE_BOOT_PROGRESS, value)
+
     private val FAVORITE_APP_IDS = stringPreferencesKey("favorite_app_ids")
     var favoriteAppIds: Set<String>
         get() {
@@ -1914,6 +1873,13 @@ object PrefManager {
             }
         }
     }
+
+    // Effekseer WASM stub for the chromium-109 audio CHECK crash. "auto" = stub below
+    // EffekseerWasmGate.AFFECTED_BELOW_MAJOR, "on" = always (no particle effects), "off" = never.
+    private val HTML5_EFFEKSEER_WASM_STUB_MODE = stringPreferencesKey("html5_effekseer_wasm_stub_mode")
+    var html5EffekseerWasmStubMode: String
+        get() = getPref(HTML5_EFFEKSEER_WASM_STUB_MODE, "auto")
+        set(value) = setPref(HTML5_EFFEKSEER_WASM_STUB_MODE, value)
 
     // Add new setting for Wine debug logging
     private val ENABLE_WINE_DEBUG = booleanPreferencesKey("enable_wine_debug")
