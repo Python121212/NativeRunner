@@ -136,7 +136,6 @@ jobs:
       # The app module depends on two submodules (a leveldb fork and a snappy fork); Gradle fails
       # the whole build when they are empty, so they are fetched before anything else runs.
       - name: Check out leveldb + snappy submodules
-        if: steps.want.outputs.run == 'true'
         run: git submodule update --init --recursive iq80-leveldb/upstream snappy-java/upstream
 
       - name: Restore large binary assets (assets / jniLibs / bundletool)
