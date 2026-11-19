@@ -304,14 +304,28 @@ jobs:
             echo "::notice title=task-timings-${RUN_ID}::$TOP"
           fi
 
+      # Android refuses an in-place update when the certificate changes, so the
+      # signing certificate is pinned here: a build made with a different key fails
+      # loudly instead of silently producing an APK that cannot overwrite the last one.
       - name: Verify APK signatures
+        env:
+          # SHA-256 of the certificate every release since apk-20 has been signed with.
+          EXPECTED_CERT_SHA256: "81:39:18:80:38:67:13:F8:55:26:C2:20:80:FF:A4:3A:80:0A:B2:8B:75:5C:DA:B9:53:4B:7A:2B:CD:6F:E8:E6"
         run: |
           set -euo pipefail
+          EXPECTED="$(echo "$EXPECTED_CERT_SHA256" | tr -d ' ' | tr 'A-F' 'a-f')"
           BUILD_TOOLS="$(ls -d "${ANDROID_HOME:-$ANDROID_SDK_ROOT}"/build-tools/*/ 2>/dev/null | sort -V | tail -1)"
           APKSIGNER="${BUILD_TOOLS}apksigner"
           for apk in $(find app/build/outputs/apk -name '*.apk'); do
             echo "== $apk"
             "$APKSIGNER" verify --print-certs "$apk"
+            ACTUAL="$("$APKSIGNER" verify --print-certs "$apk" \
+              | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+            if [ "$ACTUAL" != "$EXPECTED" ]; then
+              echo "::error title=signing-key-changed::$apk is signed with $ACTUAL, expected $EXPECTED (over-the-air update would fail)"
+              exit 1
+            fi
+            echo "   signing certificate matches the pinned release key"
           done
 
       - name: Stage APKs
@@ -351,8 +365,8 @@ jobs:
             --title "GameNative ${APK_VERSION} (build #${{ github.run_number }})" \
             --notes "Automated release-signed build of \`${{ github.sha }}\` — version ${APK_VERSION} (versionCode ${APK_VERSION_CODE}), flavors: ${{ inputs.flavors || 'legacy' }}.
 
-          - 署名: ci/release のリリース鍵（自己署名）
-          - 上流 GameNative とは署名が異なるため、既存インストールの上書き更新はできません
+          - 署名: ci/release のリリース鍵（自己署名）。証明書 SHA-256 は `81:39:18:80:38:67:13:F8:55:26:C2:20:80:FF:A4:3A:80:0A:B2:8B:75:5C:DA:B9:53:4B:7A:2B:CD:6F:E8:E6` で、`apk-20` 以降ずっと同じ鍵です
+          - 上流 GameNative とは署名が異なるため、上流版からの上書き更新はできません（本リポジトリの前回版からは上書きできます）
           - ビルドログ: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Upload APK as workflow artifact
