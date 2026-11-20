@@ -11,6 +11,7 @@ import app.gamenative.data.EpicGame
 import app.gamenative.data.LaunchInfo
 import app.gamenative.data.LibraryItem
 import app.gamenative.data.EpicGameToken
+import app.gamenative.utils.AppIdentity
 import app.gamenative.utils.MarkerUtils
 import app.gamenative.enums.Marker
 import app.gamenative.events.AndroidEvent
@@ -49,8 +50,8 @@ class EpicService : Service() {
     companion object {
         private var instance: EpicService? = null
 
-        private const val ACTION_SYNC_LIBRARY = "app.gamenative.EPIC_SYNC_LIBRARY"
-        private const val ACTION_MANUAL_SYNC = "app.gamenative.EPIC_MANUAL_SYNC"
+        private val ACTION_SYNC_LIBRARY = "${AppIdentity.ACTION_PREFIX}.EPIC_SYNC_LIBRARY"
+        private val ACTION_MANUAL_SYNC = "${AppIdentity.ACTION_PREFIX}.EPIC_MANUAL_SYNC"
         private const val SYNC_THROTTLE_MILLIS = 15 * 60 * 1000L // 15 minutes
 
         // Sync tracking variables

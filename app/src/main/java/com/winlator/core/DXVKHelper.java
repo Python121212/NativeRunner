@@ -2,6 +2,7 @@ package com.winlator.core;
 
 import android.content.Context;
 
+import com.winlator.container.Container;
 import com.winlator.core.envvars.EnvVars;
 import com.winlator.xenvironment.ImageFs;
 
@@ -17,7 +18,8 @@ public class DXVKHelper {
 
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars) {
         ImageFs imageFs = ImageFs.find(context);
-        envVars.put("DXVK_STATE_CACHE_PATH", "/data/data/app.gamenative/files/imagefs"+ImageFs.CACHE_PATH);
+        // Must be this install's own folder: the app id is no longer always app.gamenative.
+        envVars.put("DXVK_STATE_CACHE_PATH", Container.APP_FILES_DIR + "/imagefs" + ImageFs.CACHE_PATH);
         envVars.put("DXVK_LOG_LEVEL", "none");
 
         File rootDir = ImageFs.find(context).getRootDir();

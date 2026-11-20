@@ -1104,7 +1104,7 @@ object PerfSampler {
             return (
                 entries.firstOrNull { it.first == "A" }
                     ?: entries.firstOrNull { (_, path) ->
-                        !path.endsWith("/Download") && !path.endsWith("app.gamenative/storage")
+                        !path.endsWith("/Download") && !path.endsWith("${AppIdentity.PACKAGE}/storage")
                     }
                 )?.second
         }

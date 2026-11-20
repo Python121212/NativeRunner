@@ -98,8 +98,8 @@ object CustomGameScanner {
         get() = File(DownloadService.baseDataDirPath, "CustomGames").apply { mkdirs() }.absolutePath
 
     /**
-     * Roots whose immediate subfolders are treated as custom games: the public GameNative
-     * roots on every volume plus the app's own sandbox folders.
+     * Roots whose immediate subfolders are treated as custom games: this app's public root on
+     * every volume plus the app's own sandbox folders.
      */
     val scanRootPaths: List<String>
         get() {

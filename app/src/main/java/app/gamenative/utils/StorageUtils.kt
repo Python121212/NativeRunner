@@ -186,18 +186,44 @@ object StorageUtils {
         return result
     }
 
-    private const val PUBLIC_INSTALL_DIR_NAME = "GameNative"
+    /**
+     * Public install folder for this app. It is deliberately *not* `GameNative`: the official
+     * build keeps using that folder, and two apps writing the same game folders is how libraries
+     * get corrupted. Games already installed by the official build are picked up instead by
+     * [GameFileTakeover], which only registers them.
+     */
+    private const val PUBLIC_INSTALL_DIR_NAME = "NativeRunner"
+
+    /** Public install folder of the official GameNative build, read-only for us. */
+    private const val UPSTREAM_PUBLIC_INSTALL_DIR_NAME = "GameNative"
 
     /**
-     * Maps an app-specific dir (<volume>/Android/data/<pkg>/files) to a public install root
-     * (<volume>/GameNative). MediaProvider disables FUSE kernel caching under Android/data,
+     * Maps an app-specific dir (<volume>/Android/data/<pkg>/files) to this app's public install
+     * root (<volume>/NativeRunner). MediaProvider disables FUSE kernel caching under Android/data,
      * making per-open metadata ops ~1000x slower there; public dirs get normal dcache treatment.
      */
     fun publicInstallRoot(appFilesDir: File): File? {
+        val volumeRoot = volumeRootOf(appFilesDir) ?: return null
+        return File(volumeRoot, PUBLIC_INSTALL_DIR_NAME)
+    }
+
+    /**
+     * Same volume root, but the official build's folder (`<volume>/GameNative`).
+     *
+     * Only used to *find* games the official build installed; nothing is ever written there.
+     * Returns null on the volume that already is [publicInstallRoot].
+     */
+    fun upstreamPublicInstallRoot(appFilesDir: File): File? {
+        val volumeRoot = volumeRootOf(appFilesDir) ?: return null
+        return File(volumeRoot, UPSTREAM_PUBLIC_INSTALL_DIR_NAME)
+    }
+
+    /** `<volume>` for a path shaped like `<volume>/Android/data/<pkg>/files`. */
+    private fun volumeRootOf(appFilesDir: File): String? {
         val path = appFilesDir.absolutePath
         val idx = path.indexOf("/Android/data/")
         if (idx <= 0) return null
-        return File(path.substring(0, idx), PUBLIC_INSTALL_DIR_NAME)
+        return path.substring(0, idx)
     }
 
     fun ensureInstallRoot(dir: File): Boolean {
