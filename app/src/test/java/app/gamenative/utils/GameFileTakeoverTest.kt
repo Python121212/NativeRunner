@@ -173,7 +173,8 @@ class GameFileTakeoverTest {
             scannedRoots = emptyList(),
         )
 
-        assertEquals(listOf(fresh.installPath, needsRepair.installPath), result.adoptable.map { it.installPath })
+        // Order follows the scan result, so the repaired row keeps its place among the new ones.
+        assertEquals(listOf(needsRepair.installPath, fresh.installPath), result.adoptable.map { it.installPath })
         assertEquals(listOf(healthy.installPath), result.alreadyInstalled.map { it.installPath })
         assertEquals(listOf(needsRepair.installPath), result.relocations.map { it.installPath })
     }
