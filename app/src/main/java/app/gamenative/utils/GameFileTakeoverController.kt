@@ -139,13 +139,15 @@ object GameFileTakeoverController {
             .eachCount()
             .entries
             .sortedBy { it.key.ordinal }
-            .joinToString("、") { (source, count) -> "${sourceLabel(source)} $count" }
+            .joinToString("、") { (source, count) -> "${gameSourceLabel(source)} $count" }
 
-    fun sourceLabel(source: GameSource): String = when (source) {
-        GameSource.STEAM -> "Steam"
-        GameSource.GOG -> "GOG"
-        GameSource.EPIC -> "Epic"
-        GameSource.AMAZON -> "Amazon"
-        GameSource.CUSTOM_GAME -> "カスタム"
-    }
+}
+
+/** Store name as the user knows it; used by the dialog rows and the prompt summary. */
+fun gameSourceLabel(source: GameSource): String = when (source) {
+    GameSource.STEAM -> "Steam"
+    GameSource.GOG -> "GOG"
+    GameSource.EPIC -> "Epic"
+    GameSource.AMAZON -> "Amazon"
+    GameSource.CUSTOM_GAME -> "カスタム"
 }

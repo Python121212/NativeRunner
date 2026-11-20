@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.Role
 import app.gamenative.PrefManager
@@ -34,6 +35,7 @@ import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.theme.ThemedAlertDialog
 import app.gamenative.utils.GameFileTakeover
 import app.gamenative.utils.GameFileTakeoverController
+import app.gamenative.utils.gameSourceLabel
 import androidx.compose.ui.res.stringResource
 import app.gamenative.utils.StorageUtils
 import java.util.Date
@@ -53,6 +55,7 @@ fun GameFileTakeoverDialog(
     onDismiss: () -> Unit,
 ) {
     val state by controller.state.collectAsState()
+    val context = LocalContext.current
 
     val title = when (state.phase) {
         GameFileTakeoverController.Phase.SCANNING -> stringResource(R.string.takeover_scan_title)
@@ -116,7 +119,7 @@ fun GameFileTakeoverDialog(
         dismissButton = {
             when (state.phase) {
                 GameFileTakeoverController.Phase.READY -> {
-                    RingTextButton(onClick = { controller.rescan() }) {
+                    RingTextButton(onClick = { controller.rescan(context) }) {
                         Text(stringResource(R.string.takeover_rescan))
                     }
                 }
@@ -292,13 +295,7 @@ private fun CandidateRow(
 }
 
 @Composable
-private fun sourceLabel(source: GameSource): String = when (source) {
-    GameSource.STEAM -> "Steam"
-    GameSource.GOG -> "GOG"
-    GameSource.EPIC -> "Epic"
-    GameSource.AMAZON -> "Amazon"
-    GameSource.CUSTOM_GAME -> "カスタム"
-}
+private fun sourceLabel(source: GameSource): String = gameSourceLabel(source)
 
 @Composable
 private fun evidenceLabel(evidence: GameFileTakeover.Evidence): String = when (evidence) {
