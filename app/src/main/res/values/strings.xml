@@ -3635,5 +3635,7 @@
     <string name="takeover_evidence_name">folder name match</string>
     <string name="takeover_errors">Could not check: %1$d location(s)</string>
     <string name="takeover_error_detail">%1$s</string>
+    <string name="takeover_stale_location">This game is registered as installed, but its recorded folder can no longer be read (it was inside another app's private storage). Ticking this repairs the recorded location; files are not moved.</string>
+    <string name="takeover_relocations">Registered at an unreadable location: %1$d (repair)</string>
     <string name="takeover_scan_failed">Scan failed: %1$s</string>
 </resources>
