@@ -166,8 +166,8 @@ jobs:
       - name: Rename APKs
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          mv universal.apk "gamenative-$TAG.apk"
-          mv universal-legacy-xr.apk "gamenative-$TAG-legacy-xr.apk"
+          mv universal.apk "NativeRunner-$TAG.apk"
+          mv universal-legacy-xr.apk "NativeRunner-$TAG-legacy-xr.apk"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -179,10 +179,10 @@ jobs:
           append_body: true
           body: |
             ## Downloads
-            - **`gamenative-${{ github.ref_name }}.apk`** — Standard build. Recommended for most users.
-            - **`gamenative-${{ github.ref_name }}-legacy-xr.apk`** — XR build for Quest headsets.
+            - **`NativeRunner-${{ github.ref_name }}.apk`** — Standard build. Recommended for most users.
+            - **`NativeRunner-${{ github.ref_name }}-legacy-xr.apk`** — XR build for Quest headsets.
           files: |
-            gamenative-${{ github.ref_name }}.apk
-            gamenative-${{ github.ref_name }}-legacy-xr.apk
+            NativeRunner-${{ github.ref_name }}.apk
+            NativeRunner-${{ github.ref_name }}-legacy-xr.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
