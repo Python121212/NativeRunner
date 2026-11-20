@@ -218,13 +218,42 @@ object StorageUtils {
         return File(volumeRoot, UPSTREAM_PUBLIC_INSTALL_DIR_NAME)
     }
 
-    /** `<volume>` for a path shaped like `<volume>/Android/data/<pkg>/files`. */
-    private fun volumeRootOf(appFilesDir: File): String? {
-        val path = appFilesDir.absolutePath
-        val idx = path.indexOf("/Android/data/")
-        if (idx <= 0) return null
-        return path.substring(0, idx)
+    /**
+     * `<volume>` for a path shaped like `<volume>/Android/data/<pkg>/files`, or for a bare volume
+     * root such as `/storage/1234-ABCD` (what [android.content.Context.getExternalFilesDirs]
+     * returns differs by release: sometimes the volume root, sometimes the app's `files` dir).
+     *
+     * Anchoring on the path prefix rather than on the current package name matters: the callers
+     * also map the *other* build's folder, and that path carries its own package name.
+     */
+    internal fun volumeRootOf(path: File): String? {
+        val absolute = path.absolutePath
+        // /storage/emulated/<user> and /storage/<VOLUME-ID> are the only shapes Android uses.
+        val storageIdx = absolute.indexOf("/storage/")
+        if (storageIdx == 0) {
+            val segments = absolute.split('/').filter { it.isNotEmpty() }
+            if (segments.size >= 2 && segments[0] == "storage") {
+                val volume = segments[1]
+                return when {
+                    volume == "emulated" && segments.size >= 3 -> "/storage/emulated/${segments[2]}"
+                    volume == "self" -> "/storage/self"
+                    else -> "/storage/$volume"
+                }
+            }
+        }
+        val dataIdx = absolute.indexOf("/data/")
+        if (dataIdx == 0) {
+            // /data/user/<user>/... or /data/data/... ; both are the single internal volume.
+            return "/data"
+        }
+        return null
     }
+
+    /** `<volume>/NativeRunner` and `<volume>/GameNative` for a volume root, in that order. */
+    fun publicInstallRootsFor(volumeRoot: File): List<File> = listOf(
+        File(volumeRoot, PUBLIC_INSTALL_DIR_NAME),
+        File(volumeRoot, UPSTREAM_PUBLIC_INSTALL_DIR_NAME),
+    )
 
     /**
      * True when [path] is a folder this install can actually reach.
@@ -335,7 +364,15 @@ object StorageUtils {
             Timber.e(e, "Error calling getExternalFilesDirs")
         }
 
-        // 2. Fallback: Iterate through all storage volumes using StorageManager
+        // 2. The shared storage root the user sees in a file manager. getExternalFilesDirs()
+        //    returns only the directories that belong to *this* app, and on some releases only
+        //    one of them, which left the official build's public GameNative/ folder unreachable.
+        runCatching { Environment.getExternalStorageDirectory() }.getOrNull()?.let { primary ->
+            val appFilesDir = File(primary, "Android/data/${context.packageName}/files")
+            if (!result.contains(appFilesDir)) result.add(appFilesDir)
+        }
+
+        // 3. Fallback: Iterate through all storage volumes using StorageManager
         val sm = context.getSystemService(Context.STORAGE_SERVICE) as? StorageManager
         if (sm != null) {
             try {

@@ -201,6 +201,7 @@ private fun ResultBody(
             Spacer(modifier = Modifier.padding(top = 8.dp))
             Text(stringResource(R.string.takeover_already_installed, result.alreadyInstalled.size))
         }
+        UnreachableBody(result)
         return
     }
 
@@ -250,6 +251,7 @@ private fun ResultBody(
             color = PluviaTheme.colors.textMuted,
         )
     }
+    UnreachableBody(result)
     if (result.errors.isNotEmpty()) {
         Spacer(modifier = Modifier.padding(top = 8.dp))
         Text(
@@ -264,6 +266,47 @@ private fun ResultBody(
                 color = PluviaTheme.colors.textMuted,
             )
         }
+    }
+}
+
+/**
+ * Explains why a game the stores still remember cannot be registered.
+ *
+ * The usual cause is the official build's private data (`/data/user/<n>/app.gamenative`): it is
+ * owned by a different UID, so no amount of scanning reaches it. Naming the app and the folder is
+ * the only honest answer — silently reporting "nothing found" is what made this look like a bug in
+ * the takeover instead of a platform limit.
+ */
+@Composable
+private fun UnreachableBody(result: GameFileTakeover.ScanResult) {
+    if (result.unreachable.isEmpty() && result.unreadableRoots.isEmpty()) return
+
+    Spacer(modifier = Modifier.padding(top = 8.dp))
+    if (result.unreachable.isNotEmpty()) {
+        Text(
+            text = stringResource(R.string.takeover_unreachable_title, result.unreachable.size),
+            style = MaterialTheme.typography.bodySmall,
+            color = PluviaTheme.colors.textMuted,
+        )
+        result.unreachable.take(3).forEach { entry ->
+            Text(
+                text = stringResource(R.string.takeover_unreachable_detail, entry.title, entry.recordedPath),
+                style = MaterialTheme.typography.bodySmall,
+                color = PluviaTheme.colors.textMuted,
+            )
+        }
+        Text(
+            text = stringResource(R.string.takeover_unreachable_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = PluviaTheme.colors.textMuted,
+        )
+    }
+    result.unreadableRoots.take(2).forEach { path ->
+        Text(
+            text = stringResource(R.string.takeover_unreadable_root, path),
+            style = MaterialTheme.typography.bodySmall,
+            color = PluviaTheme.colors.textMuted,
+        )
     }
 }
 

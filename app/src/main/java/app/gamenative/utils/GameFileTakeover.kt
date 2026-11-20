@@ -1,6 +1,7 @@
 package app.gamenative.utils
 
 import android.content.Context
+import android.os.Environment
 import app.gamenative.PrefManager
 import app.gamenative.data.AppInfo
 import app.gamenative.data.GameSource
@@ -89,10 +90,30 @@ object GameFileTakeover {
         val staleLocation: Boolean = false,
     )
 
+    /**
+     * A DB row that says "installed" while its folder is unreachable *and* no replacement folder
+     * was found. Nothing can be registered for it — the data belongs to another app's private
+     * storage — so the dialog explains it instead of returning a bare "nothing found".
+     */
+    data class Unreachable(
+        val appId: Int,
+        val title: String,
+        val recordedPath: String,
+    )
+
     data class ScanResult(
         val candidates: List<Candidate>,
         val scannedRoots: List<String>,
         val errors: List<String> = emptyList(),
+        /**
+         * Locations that exist but cannot be read from this app (another application's private
+         * data). Their contents are unreachable, so nothing in them can be registered; they are
+         * surfaced so the user is told the game is still on the device instead of seeing an
+         * unexplained empty result.
+         */
+        val unreadableRoots: List<String> = emptyList(),
+        /** Installed rows whose folders are unreachable and were not found anywhere else. */
+        val unreachable: List<Unreachable> = emptyList(),
     ) {
         /** Rows to write: not installed yet, or installed at a location that is gone. */
         val adoptable: List<Candidate>
@@ -110,23 +131,29 @@ object GameFileTakeover {
      * Version of the set of install locations this build understands.
      *
      * Bumped when the layout changes so an automatic repair pass runs once more even if the user
-     * dismissed the start-up prompt: 1 = after the application id split (records that still point
-     * into `app.gamenative`'s private storage are repointed here).
+     * dismissed the start-up prompt:
+     * - 1 = after the application id split (records that still point into `app.gamenative`'s
+     *   private storage are repointed).
+     * - 2 = the scan now also walks `<volume>/GameNative` and the official app-specific folder, so
+     *   a pass that previously found "0 candidates" is worth repeating.
      */
-    const val LAYOUT_REPAIR_VERSION = 1
-
-    /** Path segment of the official GameNative install; never written to, only scanned. */
-    private const val OFFICIAL_APP_ID_SEGMENT = "/app.gamenative/"
+    const val LAYOUT_REPAIR_VERSION = 2
 
     // Steam's shared depot lives under steamapps/common too; it is not a game.
     private const val STEAMWORKS_COMMON_APP_ID = 228980
     private const val STEAMWORKS_COMMON_DIR = "Steamworks Shared"
 
     /**
-     * Every place a game folder can live, de-duplicated by canonical path. Internal first, then
-     * the configured volume, then whatever the volume enumeration reports.
+     * Every location worth walking, in priority order and de-duplicated by canonical path.
+     *
+     * This list is deliberately *not* derived from settings. The earlier version only added the
+     * configured install root and whatever [StorageUtils.getAllExternalFilesDirs] reported, which
+     * on a device that keeps games in internal storage produced three roots — all inside this
+     * app's own folder. The official build's `GameNative/` (public storage) and its app-specific
+     * folder were therefore never visited, the scan reported "0 candidates", and the games looked
+     * absent even though they were on the device.
      */
-    fun scanRoots(context: Context): List<File> {
+    fun scanRootCandidates(context: Context): List<File> {
         val roots = LinkedHashSet<String>()
 
         fun add(path: String?) {
@@ -135,26 +162,71 @@ object GameFileTakeover {
             roots.add(real)
         }
 
-        add(DownloadService.baseDataDirPath.takeIf { it.isNotBlank() })
+        // 1. This app: internal data dir, then whatever the download service initialised.
         add(context.dataDir?.path)
-        if (PrefManager.useExternalStorage) add(PrefManager.externalStoragePath)
-        add(DownloadService.baseExternalAppDirPath.takeIf { it.isNotBlank() })
-        DownloadService.externalVolumePaths.forEach { add(it) }
-        // The official build's own sandbox on the primary volume. Installing over it does not
-        // delete it, and it is the one place this build never creates folders itself.
+        add(DownloadService.baseDataDirPath.takeIf { it.isNotBlank() })
         add(context.getExternalFilesDir(null)?.absolutePath)
-        StorageUtils.getAllExternalFilesDirs(context).forEach {
-            add(it.absolutePath)
-            // NativeRunner keeps new installs in <volume>/NativeRunner, so the official build's
-            // <volume>/GameNative is no longer covered by any of the roots above. Add it read-only:
-            // the scan only reads store metadata and registers what it finds.
-            add(StorageUtils.upstreamPublicInstallRoot(it)?.absolutePath)
-            // Same for the official build's app-specific folder on that volume.
-            add(it.absolutePath.replace("/${AppIdentity.PACKAGE}/", OFFICIAL_APP_ID_SEGMENT))
+        add(DownloadService.baseExternalAppDirPath.takeIf { it.isNotBlank() })
+        if (PrefManager.useExternalStorage) add(PrefManager.externalStoragePath)
+        DownloadService.externalVolumePaths.forEach { add(it) }
+
+        // 2. Every volume, independent of settings and of how many the enumeration reports.
+        val volumeRoots = LinkedHashSet<String>()
+        // /storage/emulated/<user> — the shared storage the user sees in a file manager. Absent
+        // from getExternalFilesDirs() on some releases, which is exactly how the official build's
+        // public folder slipped through.
+        runCatching { Environment.getExternalStorageDirectory()?.absolutePath }.getOrNull()?.let {
+            volumeRoots.add(it)
+        }
+        runCatching { context.getExternalFilesDirs(null)?.filterNotNull().orEmpty() }.getOrDefault(emptyList())
+            .forEach { StorageUtils.volumeRootOf(it)?.let(volumeRoots::add) }
+        StorageUtils.getAllExternalFilesDirs(context)
+            .forEach { StorageUtils.volumeRootOf(it)?.let(volumeRoots::add) }
+
+        volumeRoots.forEach { volume ->
+            val root = File(volume)
+            add(root.absolutePath)
+            // <volume>/NativeRunner (ours) and <volume>/GameNative (official, read-only).
+            StorageUtils.publicInstallRootsFor(root).forEach { add(it.absolutePath) }
+            // The official build's app-specific folder on this volume. Its private data on the
+            // primary volume cannot be read from here, but the folder itself may exist and is
+            // reported so the dialog can say *why* it was skipped.
+            add("$volume/Android/data/${AppIdentity.OFFICIAL_PACKAGE}/files")
+            add("$volume/Android/data/${AppIdentity.OFFICIAL_PACKAGE}")
         }
 
-        return roots.map { File(it) }.filter { it.isDirectory }
+        // 3. The official build's private data on the internal volume. Unreadable from this
+        //    process by design (mode 0700, different UID); listed so the scan can tell the user
+        //    that the game it remembers is there and need not be re-downloaded.
+        add(officialPrivateDataDir(context)?.absolutePath)
+
+        return roots.map { File(it) }
     }
+
+    /**
+     * Directories that exist but cannot be read from this app — another application's private
+     * data. Walking them yields nothing, so the scan reports them instead of silently skipping.
+     */
+    fun unreadableRoots(roots: List<File>): List<File> =
+        roots.filter { it.isDirectory && !it.canRead() }
+
+    /** Directories to walk: exists and readable. */
+    fun scanRoots(context: Context): List<File> =
+        scanRootCandidates(context).filter { it.isDirectory && it.canRead() }
+
+    /** `/data/user/<user>/<official package>` for the current user, if it exists. */
+    private fun officialPrivateDataDir(context: Context): File? {
+        val candidates = listOfNotNull(
+            context.dataDir?.parentFile?.let { File(it, AppIdentity.OFFICIAL_PACKAGE) },
+            File("/data/user/${currentUserId()}/${AppIdentity.OFFICIAL_PACKAGE}"),
+            File("/data/data/${AppIdentity.OFFICIAL_PACKAGE}"),
+        )
+        return candidates.firstOrNull { it.exists() }
+    }
+
+    private fun currentUserId(): Int = runCatching {
+        android.os.Process.myUid() / 100000
+    }.getOrDefault(0)
 
     /**
      * Walks the roots and reports what is on disk. Only directory entries and the stores' small
@@ -211,11 +283,34 @@ object GameFileTakeover {
             }
         }
 
+        val unreadable = unreadableRoots(scanRootCandidates(context))
+            .map { it.absolutePath }
+
         val sized = found.values
             .map { it.copy(sizeBytes = directorySize(it.installPath)) }
             .sortedWith(compareBy({ it.source.ordinal }, { it.title.lowercase() }))
 
-        ScanResult(sized, roots.map { it.absolutePath }, errors)
+        // A stale row that no folder on disk can satisfy: the data sits in the other app's
+        // private storage, which this process cannot read at any privilege. Worth naming, even
+        // though there is nothing to register.
+        val unreachable = installedRows.values
+            .filter { isStaleLocation(it) }
+            .filter { !isStaleCoveredByFolder(it, sized) }
+            .map {
+                Unreachable(
+                    appId = it.id,
+                    // Prefer the store's own name; the folder on disk is the fallback because the
+                    // scan may run before Steam has started, when the app table is not loaded.
+                    title = runCatching { SteamService.getAppInfoOf(it.id)?.name }
+                        .getOrNull()
+                        ?.takeIf { name -> name.isNotBlank() }
+                        ?: File(it.customInstallPath).name.ifBlank { it.id.toString() },
+                    recordedPath = it.customInstallPath,
+                )
+            }
+            .sortedBy { it.title.lowercase() }
+
+        ScanResult(sized, roots.map { it.absolutePath }, errors, unreadable, unreachable)
     }
 
     /**
@@ -246,8 +341,15 @@ object GameFileTakeover {
             if (ok) {
                 // The stores key "installed" off these markers; without the completion marker
                 // every launch treats the folder as a partial download and offers to restart it.
-                MarkerUtils.addMarker(candidate.installPath, Marker.DOWNLOAD_COMPLETE_MARKER)
-                MarkerUtils.removeMarker(candidate.installPath, Marker.DOWNLOAD_IN_PROGRESS_MARKER)
+                // Writing into the official build's folder may fail (its data is owned by a
+                // different UID), and that must not undo a registration that already succeeded:
+                // the row is what matters, the marker is a hint.
+                runCatching {
+                    MarkerUtils.addMarker(candidate.installPath, Marker.DOWNLOAD_COMPLETE_MARKER)
+                    MarkerUtils.removeMarker(candidate.installPath, Marker.DOWNLOAD_IN_PROGRESS_MARKER)
+                }.onFailure {
+                    Timber.w(it, "Takeover: markers not writable in %s (registered anyway)", candidate.installPath)
+                }
                 adopted.add(candidate)
             }
         }
@@ -328,6 +430,19 @@ object GameFileTakeover {
                     else -> errors.add("Steam: '${dir.name}' は複数のアプリに一致するため除外しました")
                 }
             }
+    }
+
+    /**
+     * True when a folder found by the scan belongs to [row] even though the row's recorded path
+     * is unreadable — then the row is a repair candidate, not an unreachable one.
+     */
+    private fun isStaleCoveredByFolder(row: AppInfo, found: List<Candidate>): Boolean {
+        val recorded = row.customInstallPath
+        if (recorded.isBlank()) return false
+        return found.any { candidate ->
+            candidate.source == GameSource.STEAM &&
+                (candidate.installPath == recorded || canonical(File(candidate.installPath)) == canonical(File(recorded)))
+        }
     }
 
     /**

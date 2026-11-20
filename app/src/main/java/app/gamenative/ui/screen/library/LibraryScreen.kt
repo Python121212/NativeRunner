@@ -453,6 +453,9 @@ private fun LibraryScreenContent(
     // is registered without the user saying yes.
     val takeoverState by GameFileTakeoverController.state.collectAsStateWithLifecycle()
     var showTakeoverDialog by rememberSaveable { mutableStateOf(false) }
+    // The start-up prompt may be dismissed for good; the once-per-layout repair pass may not, so
+    // it is tracked separately and is also allowed to explain an unreachable folder.
+    var repairPass by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         // One automatic repair pass per install-layout version, independent of whether the user
         // dismissed the start-up prompt: an "installed" row that points into the *other* app's
@@ -460,6 +463,7 @@ private fun LibraryScreenContent(
         // when the prompt was closed on an earlier launch.
         if (PrefManager.gameFileTakeoverRepairVersion < GameFileTakeover.LAYOUT_REPAIR_VERSION) {
             PrefManager.gameFileTakeoverRepairVersion = GameFileTakeover.LAYOUT_REPAIR_VERSION
+            repairPass = true
             GameFileTakeoverController.scanInBackground(context)
         } else if (!PrefManager.gameFileTakeoverPromptDismissed) {
             GameFileTakeoverController.scanInBackground(context)
@@ -467,9 +471,17 @@ private fun LibraryScreenContent(
     }
     LaunchedEffect(takeoverState.phase, takeoverState.result) {
         // Prompt once: after this the library leaves the dialog alone until the user asks again.
+        // During the repair pass an unreachable folder is worth a dialog of its own — otherwise
+        // the screen says nothing and the missing game looks like a bug in the app rather than an
+        // unreadable directory the user can act on. Outside that pass it would be a nag, so a
+        // dismissed prompt stays dismissed.
+        val result = takeoverState.result
+        val worthShowing = result != null &&
+            (result.adoptable.isNotEmpty() ||
+                (repairPass && result.unreachable.isNotEmpty()))
         if (takeoverState.phase == GameFileTakeoverController.Phase.READY &&
             !showTakeoverDialog &&
-            takeoverState.result?.adoptable?.isNotEmpty() == true
+            worthShowing
         ) {
             showTakeoverDialog = true
         }

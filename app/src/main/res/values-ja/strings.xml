@@ -3559,5 +3559,9 @@
     <string name="takeover_error_detail">%1$s</string>
     <string name="takeover_stale_location">「インストール済み」として登録されていますが、記録されたフォルダが読めません（別アプリの専用領域の中にありました）。チェックすると記録場所だけを修正します。ファイルの移動は行いません。</string>
     <string name="takeover_relocations">場所が読めない登録: %1$d 件（修復）</string>
+    <string name="takeover_unreachable_title">「インストール済み」ですがフォルダにアクセスできません: %1$d 件</string>
+    <string name="takeover_unreachable_detail">%1$s — %2$s</string>
+    <string name="takeover_unreachable_hint">そのフォルダは本家 GameNative の専用領域の中にあり、このアプリからは読めません。そのためこちらで再ダウンロードが必要です。元のファイルは削除も変更もしていません。</string>
+    <string name="takeover_unreadable_root">読み取れないため除外: %1$s</string>
     <string name="takeover_scan_failed">スキャンに失敗しました: %1$s</string>
 </resources>

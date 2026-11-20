@@ -74,12 +74,25 @@ object GameFileTakeoverController {
                     selected = result.adoptable.map { it.installPath }.toSet(),
                     error = null,
                 )
+                // Logged in full because "nothing found" is otherwise indistinguishable from
+                // "nothing was looked at": the roots, the skipped ones and the store rows that
+                // could not be reached are all part of the answer.
                 Timber.i(
-                    "Takeover scan: %d candidate(s), %d adoptable, roots=%s",
+                    "Takeover scan: %d candidate(s), %d adoptable, %d unreachable, roots=%s",
                     result.candidates.size,
                     result.adoptable.size,
+                    result.unreachable.size,
                     result.scannedRoots,
                 )
+                if (result.unreadableRoots.isNotEmpty()) {
+                    Timber.i("Takeover scan skipped (unreadable): %s", result.unreadableRoots)
+                }
+                if (result.unreachable.isNotEmpty()) {
+                    Timber.i(
+                        "Takeover scan could not reach: %s",
+                        result.unreachable.map { "${it.title}=${it.recordedPath}" },
+                    )
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

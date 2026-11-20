@@ -8,9 +8,11 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.os.Environment
 import android.os.IBinder
 import android.util.Base64
 import app.gamenative.ui.data.Achievement
+import app.gamenative.utils.AppIdentity
 import app.gamenative.ui.util.GameInviteNotificationManager
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.service.PicsAppInfo.resolveAppKeyValues
@@ -624,7 +626,10 @@ class SteamService : Service(), IChallengeUrlChanged {
         val externalAppInstallPath: String
             get() = Paths.get(externalAppInstallRoot, "Steam", "steamapps", "common").pathString
 
-        // all install paths: internal + configured external + all mounted volumes
+        // all install paths: internal + configured external + all mounted volumes + the official
+        // build's folders. The last group is what makes a game installed by the official
+        // GameNative resolvable at all: its files stay where that build put them, and this build
+        // only records the location. Reading a path is enough; nothing is written there.
         val allInstallPaths: List<String>
             get() {
                 val paths = mutableListOf(internalAppInstallPath)
@@ -637,8 +642,36 @@ class SteamService : Service(), IChallengeUrlChanged {
                         paths += Paths.get(volPath, "Steam", "steamapps", "common").pathString
                     }
                 }
+                paths += officialAppInstallPaths()
                 return paths.distinct()
             }
+
+        /**
+         * Where the official GameNative build keeps the same `Steam/steamapps/common` tree.
+         *
+         * Two layouts exist: its app-specific folder (`/storage/emulated/<user>/Android/data/
+         * app.gamenative/files`, readable) and its private data dir (`/data/user/<user>/
+         * app.gamenative`, mode 0700 — listed but unreadable). Both are only ever read.
+         */
+        private fun officialAppInstallPaths(): List<String> {
+            val volumes = LinkedHashSet<String>()
+            runCatching { Environment.getExternalStorageDirectory()?.absolutePath }.getOrNull()?.let(volumes::add)
+            DownloadService.externalVolumePaths
+                .forEach { StorageUtils.volumeRootOf(File(it))?.let(volumes::add) }
+
+            val paths = volumes.map {
+                "$it/Android/data/${AppIdentity.OFFICIAL_PACKAGE}/files/Steam/steamapps/common"
+            }.toMutableList()
+            // /data/user/<user>/app.nativerunner -> /data/user/<user>/app.gamenative
+            DownloadService.baseDataDirPath
+                .takeIf { it.isNotBlank() }
+                ?.let { dataDir ->
+                    File(dataDir).parentFile?.let {
+                        paths += File(it, "${AppIdentity.OFFICIAL_PACKAGE}/Steam/steamapps/common").path
+                    }
+                }
+            return paths
+        }
 
         private val internalAppStagingPath: String
             get() {
