@@ -40,6 +40,15 @@ object AppIdentity {
      */
     const val NAMESPACE: String = "app.gamenative"
 
+    /**
+     * Package id of the official GameNative build.
+     *
+     * Never installed as, written to, or launched by this build — used only to *find* what the
+     * official build left behind (its public `GameNative/` folder, its app-specific folder, its
+     * private data dir) so those games can be registered instead of re-downloaded.
+     */
+    const val OFFICIAL_PACKAGE: String = "app.gamenative"
+
     /** `<namespace>.MainActivityAliasDefault` — the alias declared in the manifest. */
     fun mainActivityAlias(alt: Boolean): String =
         "$NAMESPACE.MainActivityAlias${if (alt) "Alt" else "Default"}"

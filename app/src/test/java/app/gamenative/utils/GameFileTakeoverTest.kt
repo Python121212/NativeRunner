@@ -188,6 +188,58 @@ class GameFileTakeoverTest {
         assertTrue(!StorageUtils.isUsableInstallDir(""))
     }
 
+    // ── Volume roots ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * The volume root used to be derived from "/Android/data/" and returned null for anything
+     * else. That silently dropped `<volume>/GameNative` — the official build's public folder —
+     * from every scan on a device where getExternalFilesDirs() reports a bare volume root.
+     */
+    @Test
+    fun volumeRoot_ofAppFilesDir_isTheVolume() {
+        assertEquals(
+            "/storage/emulated/0",
+            StorageUtils.volumeRootOf(File("/storage/emulated/0/Android/data/app.nativerunner/files")),
+        )
+        assertEquals(
+            "/storage/emulated/10",
+            StorageUtils.volumeRootOf(File("/storage/emulated/10/Android/data/app.nativerunner/files")),
+        )
+    }
+
+    @Test
+    fun volumeRoot_ofASdCardIsTheCardNotTheAppFolder() {
+        assertEquals(
+            "/storage/1234-ABCD",
+            StorageUtils.volumeRootOf(File("/storage/1234-ABCD/Android/data/app.nativerunner/files")),
+        )
+        assertEquals("/storage/1234-ABCD", StorageUtils.volumeRootOf(File("/storage/1234-ABCD")))
+    }
+
+    @Test
+    fun volumeRoot_ofAnotherAppsFolderIsStillTheVolume() {
+        // The mapping must not depend on the current package name: the official build's folder is
+        // scanned too, and it carries a different one.
+        assertEquals(
+            "/storage/emulated/0",
+            StorageUtils.volumeRootOf(File("/storage/emulated/0/Android/data/app.gamenative")),
+        )
+    }
+
+    @Test
+    fun volumeRoot_ofAnUnrelatedPathIsNull() {
+        assertNull(StorageUtils.volumeRootOf(File("/tmp/elsewhere")))
+    }
+
+    @Test
+    fun publicInstallRoots_namesBothThisAppAndTheOfficialOne() {
+        val roots = StorageUtils.publicInstallRootsFor(File("/storage/emulated/0"))
+        assertEquals(
+            listOf("/storage/emulated/0/NativeRunner", "/storage/emulated/0/GameNative"),
+            roots.map { it.absolutePath },
+        )
+    }
+
     private fun candidate(installed: Boolean, stale: Boolean) = GameFileTakeover.Candidate(
         source = GameSource.STEAM,
         containerId = "STEAM_${installed.hashCode()}_${stale.hashCode()}",

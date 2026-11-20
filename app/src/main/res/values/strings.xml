@@ -3637,5 +3637,9 @@
     <string name="takeover_error_detail">%1$s</string>
     <string name="takeover_stale_location">This game is registered as installed, but its recorded folder can no longer be read (it was inside another app\'s private storage). Ticking this repairs the recorded location; files are not moved.</string>
     <string name="takeover_relocations">Registered at an unreadable location: %1$d (repair)</string>
+    <string name="takeover_unreachable_title">Saved as installed, but the folder is unreachable: %1$d</string>
+    <string name="takeover_unreachable_detail">%1$s — %2$s</string>
+    <string name="takeover_unreachable_hint">The folder belongs to another app\'s private storage (the official GameNative). This app cannot read it, so the game has to be downloaded again here; the old files are not touched or deleted.</string>
+    <string name="takeover_unreadable_root">Skipped (cannot be read): %1$s</string>
     <string name="takeover_scan_failed">Scan failed: %1$s</string>
 </resources>
