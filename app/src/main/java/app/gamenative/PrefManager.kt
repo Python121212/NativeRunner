@@ -1959,6 +1959,25 @@ object PrefManager {
         get() = getPref(PLAY_INTEGRITY_AVAILABLE, false)
         set(value) = setPref(PLAY_INTEGRITY_AVAILABLE, value)
 
+    // Game folders left behind by another build (the official app, or an older one of ours).
+    // "lastScan" is shown in the settings entry; "lastRun" is set only when rows were written.
+    private val GAME_FILE_TAKEOVER_LAST_SCAN = longPreferencesKey("game_file_takeover_last_scan")
+    var gameFileTakeoverLastScan: Long
+        get() = getPref(GAME_FILE_TAKEOVER_LAST_SCAN, 0L)
+        set(value) = setPref(GAME_FILE_TAKEOVER_LAST_SCAN, value)
+
+    // Set when the user closes the start-up prompt with "later": the prompt is not shown again,
+    // but the settings entry still scans on demand.
+    private val GAME_FILE_TAKEOVER_PROMPT_DISMISSED = booleanPreferencesKey("game_file_takeover_prompt_dismissed")
+    var gameFileTakeoverPromptDismissed: Boolean
+        get() = getPref(GAME_FILE_TAKEOVER_PROMPT_DISMISSED, false)
+        set(value) = setPref(GAME_FILE_TAKEOVER_PROMPT_DISMISSED, value)
+
+    private val GAME_FILE_TAKEOVER_LAST_RUN = longPreferencesKey("game_file_takeover_last_run")
+    var gameFileTakeoverLastRun: Long
+        get() = getPref(GAME_FILE_TAKEOVER_LAST_RUN, 0L)
+        set(value) = setPref(GAME_FILE_TAKEOVER_LAST_RUN, value)
+
     private val GOG_AMAZON_PATH_MIGRATED = booleanPreferencesKey("gog_amazon_path_migrated")
     var gogAmazonPathMigrated: Boolean
         get() = getPref(GOG_AMAZON_PATH_MIGRATED, false)

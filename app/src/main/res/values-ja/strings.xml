@@ -1596,6 +1596,10 @@
     <string name="settings_interface_no_external_storage">外部ストレージが見つかりません</string>
     <string name="settings_interface_external_storage_subtitle">ゲームを外部ストレージに保存します</string>
     <string name="settings_interface_storage_volume_title">ストレージボリューム</string>
+    <string name="settings_interface_adopt_existing_title">この端末にある既存のゲーム</string>
+    <string name="settings_interface_adopt_existing_subtitle">別の GameNative ビルドが残したゲームフォルダを見つけて登録します。二重ダウンロードを防ぎます</string>
+    <string name="settings_interface_adopt_existing_last_scan">前回の確認: %1$s</string>
+    <string name="settings_interface_adopt_existing_never">まだ確認していません</string>
     <string name="settings_interface_download_server_title">Steamダウンロードサーバー</string>
     <string name="settings_interface_restart_required_title">再起動が必要です</string>
 

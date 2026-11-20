@@ -67,6 +67,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import android.widget.ImageView
 import app.gamenative.utils.IconSwitcher
 import app.gamenative.ui.component.settings.SettingsMenuLink
+import app.gamenative.ui.component.dialog.GameFileTakeoverDialog
+import app.gamenative.ui.component.dialog.takeoverLastScanLabel
+import app.gamenative.utils.GameFileTakeoverController
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
@@ -739,6 +742,32 @@ fun SettingsGroupInterface(
                 colors = settingsTileColorsAlt(),
             )
         }
+        // Game folders left by another build: scanning is the only way to notice them, since
+        // installing over the official app replaces its DB but not the game folders.
+        var showTakeoverDialog by remember { mutableStateOf(false) }
+        if (showTakeoverDialog) {
+            GameFileTakeoverDialog(onDismiss = { showTakeoverDialog = false })
+        }
+        SettingsMenuLink(
+            colors = settingsTileColorsAlt(),
+            title = { Text(text = stringResource(R.string.settings_interface_adopt_existing_title)) },
+            subtitle = {
+                val lastScan = takeoverLastScanLabel(PrefManager.gameFileTakeoverLastScan)
+                Text(
+                    if (lastScan == null) {
+                        stringResource(R.string.settings_interface_adopt_existing_never)
+                    } else {
+                        stringResource(R.string.settings_interface_adopt_existing_last_scan, lastScan)
+                    },
+                )
+            },
+            onClick = {
+                PrefManager.gameFileTakeoverPromptDismissed = false
+                showTakeoverDialog = true
+                GameFileTakeoverController.rescan(ctx)
+            },
+        )
+
         // Steam download server selection
         SettingsMenuLink(
             colors = settingsTileColorsAlt(),

@@ -7,6 +7,8 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import app.gamenative.ui.theme.ThemedAlertDialog
+import app.gamenative.ui.component.dialog.GameFileTakeoverDialog
+import app.gamenative.utils.GameFileTakeoverController
 import app.gamenative.ui.util.SnackbarManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -444,6 +446,26 @@ private fun LibraryScreenContent(
 
     // Dialog state for add custom game prompt
     var showAddCustomGameDialog by remember { mutableStateOf(false) }
+
+    // Game folders left behind by another build (the official app, an older build of this one).
+    // The scan runs once per launch, off the main thread; a hit only raises a prompt, so nothing
+    // is registered without the user saying yes.
+    val takeoverState by GameFileTakeoverController.state.collectAsStateWithLifecycle()
+    var showTakeoverDialog by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!PrefManager.gameFileTakeoverPromptDismissed) {
+            GameFileTakeoverController.scanInBackground(context)
+        }
+    }
+    LaunchedEffect(takeoverState.phase, takeoverState.result) {
+        // Prompt once: after this the library leaves the dialog alone until the user asks again.
+        if (takeoverState.phase == GameFileTakeoverController.Phase.READY &&
+            !showTakeoverDialog &&
+            takeoverState.result?.adoptable?.isNotEmpty() == true
+        ) {
+            showTakeoverDialog = true
+        }
+    }
     var dontShowAgain by remember { mutableStateOf(false) }
     var previousAppCount by remember { mutableIntStateOf(state.appInfoList.size) }
     var controllerBootstrapNeeded by remember { mutableStateOf(true) }
@@ -1660,6 +1682,13 @@ private fun LibraryScreenContent(
                 containerColor = PluviaTheme.dialogContainerColor,
                 titleContentColor = PluviaTheme.dialogTitleColor,
                 textContentColor = PluviaTheme.dialogTextColor,
+            )
+        }
+
+        // Game folders found on the device that this build does not know about yet
+        if (showTakeoverDialog) {
+            GameFileTakeoverDialog(
+                onDismiss = { showTakeoverDialog = false },
             )
         }
 
