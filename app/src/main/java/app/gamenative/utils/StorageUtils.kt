@@ -226,6 +226,20 @@ object StorageUtils {
         return path.substring(0, idx)
     }
 
+    /**
+     * True when [path] is a folder this install can actually reach.
+     *
+     * A recorded install path may live in another application's private data — the usual cause is
+     * a record written by a build with a different application id (the official `app.gamenative`
+     * versus `app.nativerunner`). Such a path exists as text but cannot be listed or read here, so
+     * treating it as the install dir makes a game look installed while it can never start.
+     */
+    fun isUsableInstallDir(path: String?): Boolean {
+        if (path.isNullOrBlank()) return false
+        val dir = File(path)
+        return dir.isDirectory && dir.canRead()
+    }
+
     fun ensureInstallRoot(dir: File): Boolean {
         if (!dir.isDirectory && !dir.mkdirs()) return false
         runCatching { File(dir, ".nomedia").createNewFile() }

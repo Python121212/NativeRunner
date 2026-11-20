@@ -8,6 +8,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import app.gamenative.ui.theme.ThemedAlertDialog
 import app.gamenative.ui.component.dialog.GameFileTakeoverDialog
+import app.gamenative.utils.GameFileTakeover
 import app.gamenative.utils.GameFileTakeoverController
 import app.gamenative.ui.util.SnackbarManager
 import androidx.activity.compose.BackHandler
@@ -453,7 +454,14 @@ private fun LibraryScreenContent(
     val takeoverState by GameFileTakeoverController.state.collectAsStateWithLifecycle()
     var showTakeoverDialog by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        if (!PrefManager.gameFileTakeoverPromptDismissed) {
+        // One automatic repair pass per install-layout version, independent of whether the user
+        // dismissed the start-up prompt: an "installed" row that points into the *other* app's
+        // private storage is a bug the user cannot see or fix, so it gets corrected once even
+        // when the prompt was closed on an earlier launch.
+        if (PrefManager.gameFileTakeoverRepairVersion < GameFileTakeover.LAYOUT_REPAIR_VERSION) {
+            PrefManager.gameFileTakeoverRepairVersion = GameFileTakeover.LAYOUT_REPAIR_VERSION
+            GameFileTakeoverController.scanInBackground(context)
+        } else if (!PrefManager.gameFileTakeoverPromptDismissed) {
             GameFileTakeoverController.scanInBackground(context)
         }
     }

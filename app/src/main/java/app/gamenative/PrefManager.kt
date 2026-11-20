@@ -1973,6 +1973,15 @@ object PrefManager {
         get() = getPref(GAME_FILE_TAKEOVER_PROMPT_DISMISSED, false)
         set(value) = setPref(GAME_FILE_TAKEOVER_PROMPT_DISMISSED, value)
 
+    // Bumped when the set of install locations this build can reach changes (e.g. the move from
+    // `GameNative/` + `app.gamenative` to `NativeRunner/` + `app.nativerunner`). A repair pass tied
+    // to an older layout has already run, so it must run again for the new one even when the
+    // start-up prompt itself was dismissed. 1 = records from before the application id split.
+    private val GAME_FILE_TAKEOVER_REPAIR_VERSION = intPreferencesKey("game_file_takeover_repair_version")
+    var gameFileTakeoverRepairVersion: Int
+        get() = getPref(GAME_FILE_TAKEOVER_REPAIR_VERSION, 0)
+        set(value) = setPref(GAME_FILE_TAKEOVER_REPAIR_VERSION, value)
+
     private val GAME_FILE_TAKEOVER_LAST_RUN = longPreferencesKey("game_file_takeover_last_run")
     var gameFileTakeoverLastRun: Long
         get() = getPref(GAME_FILE_TAKEOVER_LAST_RUN, 0L)

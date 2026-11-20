@@ -96,7 +96,7 @@ fun GameFileTakeoverDialog(
                     val adoptable = state.result?.adoptable.orEmpty()
                     if (adoptable.isNotEmpty()) {
                         RingTextButton(
-                            onClick = { controller.adopt() },
+                            onClick = { controller.adopt(context) },
                             enabled = state.selected.isNotEmpty(),
                         ) {
                             Text(stringResource(R.string.takeover_adopt_action, state.selected.size))
@@ -234,6 +234,14 @@ private fun ResultBody(
         )
     }
 
+    if (result.relocations.isNotEmpty()) {
+        Spacer(modifier = Modifier.padding(top = 8.dp))
+        Text(
+            text = stringResource(R.string.takeover_relocations, result.relocations.size),
+            style = MaterialTheme.typography.bodySmall,
+            color = PluviaTheme.colors.textMuted,
+        )
+    }
     if (result.alreadyInstalled.isNotEmpty()) {
         Spacer(modifier = Modifier.padding(top = 8.dp))
         Text(
@@ -290,6 +298,15 @@ private fun CandidateRow(
                 color = PluviaTheme.colors.textMuted,
                 maxLines = 3,
             )
+            if (candidate.staleLocation) {
+                // Installed already, but the recorded folder is gone/unreadable (typically the
+                // previous app's private data). Ticking this row repoints the record.
+                Text(
+                    text = stringResource(R.string.takeover_stale_location),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = PluviaTheme.colors.textMuted,
+                )
+            }
         }
     }
 }

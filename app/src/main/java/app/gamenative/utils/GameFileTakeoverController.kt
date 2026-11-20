@@ -104,14 +104,15 @@ object GameFileTakeoverController {
         )
     }
 
-    fun adopt() {
+    fun adopt(context: Context) {
         val current = _state.value
         val chosen = current.result?.adoptable.orEmpty()
             .filter { it.installPath in current.selected }
         if (chosen.isEmpty() || current.isBusy) return
+        val appContext = context.applicationContext
         _state.value = current.copy(phase = Phase.ADOPTING)
         job = scope.launch {
-            val adopted = GameFileTakeover.adopt(chosen) { done, total, label ->
+            val adopted = GameFileTakeover.adopt(appContext, chosen) { done, total, label ->
                 _state.value = _state.value.copy(
                     progressDone = done,
                     progressTotal = total,

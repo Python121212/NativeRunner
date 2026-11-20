@@ -3557,5 +3557,7 @@
     <string name="takeover_evidence_name">フォルダ名の一致</string>
     <string name="takeover_errors">確認できなかった場所: %1$d 件</string>
     <string name="takeover_error_detail">%1$s</string>
+    <string name="takeover_stale_location">「インストール済み」として登録されていますが、記録されたフォルダが読めません（別アプリの専用領域の中にありました）。チェックすると記録場所だけを修正します。ファイルの移動は行いません。</string>
+    <string name="takeover_relocations">場所が読めない登録: %1$d 件（修復）</string>
     <string name="takeover_scan_failed">スキャンに失敗しました: %1$s</string>
 </resources>

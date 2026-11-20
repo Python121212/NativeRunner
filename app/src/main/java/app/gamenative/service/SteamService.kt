@@ -64,6 +64,7 @@ import app.gamenative.utils.DepotManifestFiles
 import app.gamenative.utils.FileUtils
 import app.gamenative.utils.LicenseSerializer
 import app.gamenative.utils.LocaleHelper
+import app.gamenative.utils.StorageUtils
 import app.gamenative.utils.LsfgVkManager
 import app.gamenative.utils.MarkerUtils
 import app.gamenative.utils.Net
@@ -1452,7 +1453,13 @@ class SteamService : Service(), IChallengeUrlChanged {
         fun getImportedAppDirs(): List<String> {
             val dirs = mutableSetOf<String>()
             val installedApps = getAllInstalledApps()
-            val importedAppIds = installedApps?.filter { it.isImported }?.map { it.id }
+            // An imported row only counts while its folder is reachable. A record left behind by a
+            // build with a different application id points into that app's private storage, which
+            // this install cannot read: listing it here made the library show "installed" for a
+            // game whose folder is invisible (and unlaunchable) to us.
+            val importedAppIds = installedApps
+                ?.filter { it.isImported && StorageUtils.isUsableInstallDir(it.customInstallPath) }
+                ?.map { it.id }
             if (importedAppIds != null) {
                 val steamApps = importedAppIds
                     .chunked(900)
@@ -1897,19 +1904,34 @@ class SteamService : Service(), IChallengeUrlChanged {
         fun getAppDirPath(gameId: Int): String {
             val info = getAppInfoOf(gameId)
 
-            // For installed game, check whether it has customInstallPath and return it
             val appInfo = getInstalledApp(gameId)
-            if (appInfo != null && appInfo.isImported) {
-                return appInfo.customInstallPath
-            }
-
             val appName = getAppDirName(info)
             val oldName = info?.name.orEmpty()
             val names = if (oldName.isNotEmpty() && oldName != appName) listOf(appName, oldName) else listOf(appName)
 
+            // For an imported game the recorded folder wins -- but only while it is still usable.
+            // The record can point into another app's private data (an install that predates a
+            // different application id); that path is unreadable from here and must not be
+            // reported as the install location, or the game looks installed and never starts.
+            if (appInfo != null && appInfo.isImported) {
+                val recorded = appInfo.customInstallPath
+                if (StorageUtils.isUsableInstallDir(recorded)) return recorded
+                Timber.w(
+                    "[STEAM] recorded install dir %s for %d is not readable; resolving from disk",
+                    recorded,
+                    gameId,
+                )
+            }
+
             // prefer completed installs over partial/stale directories
             val resolved = resolveExistingAppDir(allInstallPaths, names)
             if (resolved != null) return resolved
+
+            if (appInfo != null && appInfo.isImported && appInfo.customInstallPath.isNotBlank()) {
+                // Nothing found on disk: keep reporting what is recorded rather than inventing a
+                // path under this app's own root, so the UI and any repair flow see the truth.
+                return appInfo.customInstallPath
+            }
 
             // nothing on disk yet — default to preferred install location
             if (PrefManager.useExternalStorage) {
@@ -3138,12 +3160,28 @@ class SteamService : Service(), IChallengeUrlChanged {
                 val updatedDownloadedDepots = (appInfo.downloadedDepots + entitledDepotIds).distinct()
                 val updatedDlcDepots = (appInfo.dlcDepots + selectedDlcAppIds).distinct()
 
+                // This run just wrote appDirPath, so a recorded folder that cannot be read (a
+                // record from a build with a different application id, e.g. the official
+                // `app.gamenative`) must be repointed at it. Otherwise the completed download is
+                // stored against the old, unreachable path and the game still looks uninstalled.
+                val recorded = appInfo.customInstallPath
+                val repoint = recorded.isNotBlank() && !StorageUtils.isUsableInstallDir(recorded)
+                if (repoint) {
+                    Timber.w(
+                        "[STEAM] %d finished downloading to %s; repointing unreadable record %s",
+                        downloadingAppId,
+                        appDirPath,
+                        recorded,
+                    )
+                }
+
                 instance?.appInfoDao?.update(
                     appInfo.copy(
                         isDownloaded = true,
                         downloadedDepots = updatedDownloadedDepots.sorted(),
                         dlcDepots = updatedDlcDepots.sorted(),
                         branch = branch,
+                        customInstallPath = if (repoint) appDirPath else recorded,
                     ),
                 )
             } else {

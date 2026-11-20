@@ -1,5 +1,6 @@
 package app.gamenative.utils
 
+import app.gamenative.data.GameSource
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -157,4 +158,43 @@ class GameFileTakeoverTest {
     fun canonical_worksForPathsThatDoNotExistYet() {
         assertNotNull(GameFileTakeover.canonical(File(tempFolder.root, "not/created/yet")))
     }
+
+    // ── Records whose recorded folder is unreachable ─────────────────────────────────────
+
+    /** A game registered as installed still has to be offered when its folder is gone. */
+    @Test
+    fun adoptable_includesRowsThatNeedTheirLocationRepaired() {
+        val healthy = candidate(installed = true, stale = false)
+        val needsRepair = candidate(installed = true, stale = true)
+        val fresh = candidate(installed = false, stale = false)
+
+        val result = GameFileTakeover.ScanResult(
+            candidates = listOf(healthy, needsRepair, fresh),
+            scannedRoots = emptyList(),
+        )
+
+        // Order follows the scan result, so the repaired row keeps its place among the new ones.
+        assertEquals(listOf(needsRepair.installPath, fresh.installPath), result.adoptable.map { it.installPath })
+        assertEquals(listOf(healthy.installPath), result.alreadyInstalled.map { it.installPath })
+        assertEquals(listOf(needsRepair.installPath), result.relocations.map { it.installPath })
+    }
+
+    @Test
+    fun usableInstallDir_requiresADirectoryThatCanBeRead() {
+        val dir = tempFolder.newFolder("installed")
+        assertTrue(StorageUtils.isUsableInstallDir(dir.absolutePath))
+        assertTrue(!StorageUtils.isUsableInstallDir(File(tempFolder.root, "missing").absolutePath))
+        assertTrue(!StorageUtils.isUsableInstallDir(null))
+        assertTrue(!StorageUtils.isUsableInstallDir(""))
+    }
+
+    private fun candidate(installed: Boolean, stale: Boolean) = GameFileTakeover.Candidate(
+        source = GameSource.STEAM,
+        containerId = "STEAM_${installed.hashCode()}_${stale.hashCode()}",
+        title = "Game",
+        installPath = tempFolder.root.absolutePath + "/${installed}_${stale}",
+        evidence = GameFileTakeover.Evidence.STORE_METADATA,
+        alreadyInstalled = installed,
+        staleLocation = stale,
+    )
 }

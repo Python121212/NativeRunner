@@ -4,6 +4,7 @@ import android.content.Context
 import app.gamenative.PrefManager
 import app.gamenative.data.AppInfo
 import app.gamenative.data.GameSource
+import app.gamenative.db.dao.AppInfoDao
 import app.gamenative.enums.Marker
 import app.gamenative.service.DownloadService
 import app.gamenative.service.SteamService
@@ -12,6 +13,10 @@ import app.gamenative.service.epic.EpicService
 import app.gamenative.service.gog.GOGService
 import java.io.File
 import java.nio.file.Paths
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -32,6 +37,11 @@ import timber.log.Timber
  * game folder, and it never touches a game a store has already claimed: for every candidate the
  * store DB is consulted first and an already-installed row always wins.
  *
+ * The one exception is a row that claims to be installed while its recorded folder is unreachable
+ * (another application's private storage): that row is *repointed* at the folder found here,
+ * because otherwise the game shows as installed forever and can never start. Files are still not
+ * touched.
+ *
  * Layouts it understands — all of them created by GameNative itself:
  *  - Steam:  `<root>/Steam/steamapps/common/<installdir>` (+ `appmanifest_<id>.acf`)
  *  - GOG:    `<root>/GOG/games/common/<title>`, older builds `<root>/GOG/games/<title>`
@@ -42,6 +52,12 @@ import timber.log.Timber
  * the official build (NativeRunner keeps its own games in `NativeRunner/`).
  */
 object GameFileTakeover {
+
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface TakeoverEntryPoint {
+        fun appInfoDao(): AppInfoDao
+    }
 
     /** How a candidate was recognised; shown in the dialog so nothing is taken on trust. */
     enum class Evidence {
@@ -61,6 +77,16 @@ object GameFileTakeover {
         /** Already registered as installed: shown for context, never re-written. */
         val alreadyInstalled: Boolean = false,
         val sizeBytes: Long = 0L,
+        /**
+         * The row says "installed", but the folder it records cannot be used by this app.
+         *
+         * This is the case that looked fine and then failed: an install left an "installed" row
+         * whose recorded path is another application's private data (typically the official
+         * `app.gamenative`, unreadable once this build runs as `app.nativerunner`). Such a row
+         * reports "installed" forever while the game never starts, so the takeover repoints it at
+         * the folder it actually found and counts the candidate as adoptable.
+         */
+        val staleLocation: Boolean = false,
     )
 
     data class ScanResult(
@@ -68,9 +94,26 @@ object GameFileTakeover {
         val scannedRoots: List<String>,
         val errors: List<String> = emptyList(),
     ) {
-        val adoptable: List<Candidate> get() = candidates.filter { !it.alreadyInstalled }
-        val alreadyInstalled: List<Candidate> get() = candidates.filter { it.alreadyInstalled }
+        /** Rows to write: not installed yet, or installed at a location that is gone. */
+        val adoptable: List<Candidate>
+            get() = candidates.filter { !it.alreadyInstalled || it.staleLocation }
+
+        val alreadyInstalled: List<Candidate>
+            get() = candidates.filter { it.alreadyInstalled && !it.staleLocation }
+
+        /** Installed rows that only need their recorded location corrected. */
+        val relocations: List<Candidate>
+            get() = candidates.filter { it.alreadyInstalled && it.staleLocation }
     }
+
+    /**
+     * Version of the set of install locations this build understands.
+     *
+     * Bumped when the layout changes so an automatic repair pass runs once more even if the user
+     * dismissed the start-up prompt: 1 = after the application id split (records that still point
+     * into `app.gamenative`'s private storage are repointed here).
+     */
+    const val LAYOUT_REPAIR_VERSION = 1
 
     /** Path segment of the official GameNative install; never written to, only scanned. */
     private const val OFFICIAL_APP_ID_SEGMENT = "/app.gamenative/"
@@ -137,9 +180,15 @@ object GameFileTakeover {
             }
         }
 
+        // Installed Steam rows, read straight from the DB: SteamService (and its DAO) only exists
+        // once Steam has started, but a stale install record must be fixable before login too.
+        val installedRows: Map<Int, AppInfo> = runCatching {
+            installedSteamRows(context).associateBy { it.id }
+        }.getOrDefault(emptyMap())
+
         // GOG/Epic/Amazon read their library rows, so the steps are suspend lambdas.
         val steps = listOf<Pair<String, suspend (File) -> Unit>>(
-            "Steam" to { root -> scanSteam(root, ::addCandidate, errors) },
+            "Steam" to { root -> scanSteam(root, ::addCandidate, errors, installedRows) },
             "GOG" to { root -> scanGog(root, ::addCandidate) },
             "Epic" to { root -> scanEpic(root, ::addCandidate) },
             "Amazon" to { root -> scanAmazon(root, ::addCandidate) },
@@ -169,16 +218,25 @@ object GameFileTakeover {
         ScanResult(sized, roots.map { it.absolutePath }, errors)
     }
 
-    /** Registers [candidates] and returns the ones actually written. */
+    /**
+     * Registers [candidates] and returns the ones actually written.
+     *
+     * [context] is only used to reach the database: rows must be writable before Steam has
+     * started, which is exactly when a broken install record is noticed.
+     */
     suspend fun adopt(
+        context: Context,
         candidates: List<Candidate>,
         onProgress: ((done: Int, total: Int, label: String) -> Unit)? = null,
     ): List<Candidate> = withContext(Dispatchers.IO) {
         val adopted = mutableListOf<Candidate>()
+        val appInfoDao = EntryPointAccessors
+            .fromApplication(context.applicationContext, TakeoverEntryPoint::class.java)
+            .appInfoDao()
         candidates.forEachIndexed { index, candidate ->
             onProgress?.invoke(index, candidates.size, candidate.title)
             val ok = try {
-                register(candidate)
+                register(appInfoDao, candidate)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -197,17 +255,29 @@ object GameFileTakeover {
         adopted
     }
 
-    private suspend fun register(candidate: Candidate): Boolean = when (candidate.source) {
-        GameSource.STEAM -> adoptSteam(candidate)
+    private suspend fun register(dao: AppInfoDao, candidate: Candidate): Boolean = when (candidate.source) {
+        GameSource.STEAM -> adoptSteam(dao, candidate)
         GameSource.GOG -> adoptGog(candidate)
         GameSource.EPIC -> adoptEpic(candidate)
         GameSource.AMAZON -> adoptAmazon(candidate)
         GameSource.CUSTOM_GAME -> adoptCustomGame(candidate)
     }
 
+    private suspend fun installedSteamRows(context: Context): List<AppInfo> =
+        EntryPointAccessors
+            .fromApplication(context.applicationContext, TakeoverEntryPoint::class.java)
+            .appInfoDao()
+            .getAll()
+            .filter { it.isDownloaded }
+
     // ── Steam ─────────────────────────────────────────────────────────────────────────────
 
-    private fun scanSteam(root: File, add: (Candidate) -> Unit, errors: MutableList<String>) {
+    private fun scanSteam(
+        root: File,
+        add: (Candidate) -> Unit,
+        errors: MutableList<String>,
+        installedRows: Map<Int, AppInfo>,
+    ) {
         val steamapps = File(root, "Steam/steamapps")
         val common = File(steamapps, "common")
         if (!common.isDirectory) return
@@ -229,6 +299,7 @@ object GameFileTakeover {
                         dir = dir,
                         title = readAcfField(file, "name") ?: installDir,
                         evidence = Evidence.STORE_METADATA,
+                        row = installedRows[appId],
                     ),
                 )
             }
@@ -250,6 +321,7 @@ object GameFileTakeover {
                             dir = dir,
                             title = matches[0].name,
                             evidence = Evidence.NAME_MATCH,
+                            row = installedRows[matches[0].id],
                         ),
                     )
                     // Ambiguous: picking one would attach another game's container to the files.
@@ -258,20 +330,55 @@ object GameFileTakeover {
             }
     }
 
-    private fun steamCandidate(appId: Int, dir: File, title: String, evidence: Evidence) = Candidate(
+    /**
+     * True when the stored row claims the game is installed but its recorded folder is one this
+     * app cannot reach — typically another application's private data, e.g. the official build's
+     * `/data/user/<n>/app.gamenative/...`. Such a row reports "installed" forever while the game
+     * never starts, so the takeover has to repoint it.
+     */
+    private fun isStaleLocation(row: AppInfo?): Boolean {
+        if (row == null || !row.isDownloaded) return false
+        val recorded = row.customInstallPath.takeIf { it.isNotBlank() } ?: return false
+        return !StorageUtils.isUsableInstallDir(recorded)
+    }
+
+    private fun steamCandidate(
+        appId: Int,
+        dir: File,
+        title: String,
+        evidence: Evidence,
+        row: AppInfo?,
+    ) = Candidate(
         source = GameSource.STEAM,
         containerId = "${GameSource.STEAM.containerPrefix}$appId",
         title = title.ifBlank { dir.name },
         installPath = dir.absolutePath,
         evidence = evidence,
-        alreadyInstalled = SteamService.getInstalledApp(appId)?.isDownloaded == true,
+        alreadyInstalled = row?.isDownloaded == true,
+        staleLocation = isStaleLocation(row),
     )
 
-    private suspend fun adoptSteam(candidate: Candidate): Boolean {
+    private suspend fun adoptSteam(dao: AppInfoDao, candidate: Candidate): Boolean {
         val appId = candidate.containerId.removePrefix(GameSource.STEAM.containerPrefix).toIntOrNull()
             ?: return false
-        val dao = SteamService.instance?.appInfoDao ?: return false
-        if (dao.getInstalledApp(appId)?.isDownloaded == true) return false
+        val existing = dao.getInstalledApp(appId)
+        if (existing != null && existing.isDownloaded) {
+            if (!candidate.staleLocation) return false
+            // Keep the row (depots, branch, play-time-independent metadata) and only move the
+            // recorded location to the folder that actually exists.
+            dao.insert(
+                existing.copy(
+                    customInstallPath = candidate.installPath,
+                    recoveredInstallSizeBytes = candidate.sizeBytes,
+                ),
+            )
+            Timber.i(
+                "Takeover: repointed Steam app %s from an unreadable location to %s",
+                appId,
+                candidate.installPath,
+            )
+            return true
+        }
 
         // Depot ids come from the store, so the row matches what a real download writes and the
         // existing files are recognised as the right depots rather than an unknown layout.
@@ -313,6 +420,8 @@ object GameFileTakeover {
                     installPath = dir.absolutePath,
                     evidence = if (gameId != null) Evidence.STORE_METADATA else Evidence.NAME_MATCH,
                     alreadyInstalled = known?.isInstalled == true,
+                    staleLocation = known?.isInstalled == true &&
+                        !StorageUtils.isUsableInstallDir(known.installPath),
                 ),
             )
         }
@@ -331,7 +440,9 @@ object GameFileTakeover {
         val manager = GOGService.getInstance()?.gogManager ?: return false
         val gameId = candidate.containerId.removePrefix(GameSource.GOG.containerPrefix)
         val existing = manager.getGameFromDbById(gameId) ?: return false
-        if (existing.isInstalled) return false
+        // Already installed where the folder really is: nothing to do. Installed at a location
+        // this app cannot read (another app's private data) is repointed below.
+        if (existing.isInstalled && !candidate.staleLocation) return false
         manager.updateInstallState(
             gameId,
             isInstalled = true,
@@ -365,6 +476,8 @@ object GameFileTakeover {
                     installPath = dir.absolutePath,
                     evidence = if (hasState) Evidence.STORE_METADATA else Evidence.NAME_MATCH,
                     alreadyInstalled = known?.isInstalled == true,
+                    staleLocation = known?.isInstalled == true &&
+                        !StorageUtils.isUsableInstallDir(known.installPath),
                 ),
             )
         }
@@ -375,7 +488,7 @@ object GameFileTakeover {
         val appId = candidate.containerId.removePrefix(GameSource.EPIC.containerPrefix).toIntOrNull()
             ?: return false
         val game = manager.getGameById(appId) ?: return false
-        if (game.isInstalled) return false
+        if (game.isInstalled && !candidate.staleLocation) return false
         manager.updateGame(game.copy(isInstalled = true, installPath = candidate.installPath))
         Timber.i("Takeover: registered Epic game %s at %s", appId, candidate.installPath)
         return true
@@ -401,6 +514,8 @@ object GameFileTakeover {
                     installPath = dir.absolutePath,
                     evidence = Evidence.NAME_MATCH,
                     alreadyInstalled = known?.isInstalled == true,
+                    staleLocation = known?.isInstalled == true &&
+                        !StorageUtils.isUsableInstallDir(known.installPath),
                 ),
             )
         }
