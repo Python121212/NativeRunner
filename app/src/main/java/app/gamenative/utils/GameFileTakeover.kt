@@ -38,7 +38,8 @@ import timber.log.Timber
  *  - Epic:   `<root>/Epic/games/<title>`
  *  - Amazon: `<root>/Amazon/games/<title>`
  * where `<root>` is the internal data dir, the configured external root, any mounted volume, or
- * the per-app `Android/data/app.gamenative/files` directory left behind by the official build.
+ * the per-app `Android/data/app.gamenative/files` directory and the public `GameNative` folder of
+ * the official build (NativeRunner keeps its own games in `NativeRunner/`).
  */
 object GameFileTakeover {
 
@@ -71,6 +72,9 @@ object GameFileTakeover {
         val alreadyInstalled: List<Candidate> get() = candidates.filter { it.alreadyInstalled }
     }
 
+    /** Path segment of the official GameNative install; never written to, only scanned. */
+    private const val OFFICIAL_APP_ID_SEGMENT = "/app.gamenative/"
+
     // Steam's shared depot lives under steamapps/common too; it is not a game.
     private const val STEAMWORKS_COMMON_APP_ID = 228980
     private const val STEAMWORKS_COMMON_DIR = "Steamworks Shared"
@@ -96,7 +100,15 @@ object GameFileTakeover {
         // The official build's own sandbox on the primary volume. Installing over it does not
         // delete it, and it is the one place this build never creates folders itself.
         add(context.getExternalFilesDir(null)?.absolutePath)
-        StorageUtils.getAllExternalFilesDirs(context).forEach { add(it.absolutePath) }
+        StorageUtils.getAllExternalFilesDirs(context).forEach {
+            add(it.absolutePath)
+            // NativeRunner keeps new installs in <volume>/NativeRunner, so the official build's
+            // <volume>/GameNative is no longer covered by any of the roots above. Add it read-only:
+            // the scan only reads store metadata and registers what it finds.
+            add(StorageUtils.upstreamPublicInstallRoot(it)?.absolutePath)
+            // Same for the official build's app-specific folder on that volume.
+            add(it.absolutePath.replace("/${AppIdentity.PACKAGE}/", OFFICIAL_APP_ID_SEGMENT))
+        }
 
         return roots.map { File(it) }.filter { it.isDirectory }
     }

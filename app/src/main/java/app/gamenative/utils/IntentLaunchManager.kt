@@ -23,9 +23,11 @@ object IntentLaunchManager {
     private const val EXTRA_CONTAINER_CONFIG = "container_config"
     private const val EXTRA_EXEC_ARGS = "exec_args"
     private const val EXTRA_EXE = "exe"
-    private const val ACTION_LAUNCH_GAME = "app.gamenative.LAUNCH_GAME"
+    // Both are package-scoped: NativeRunner is a separate install (app.nativerunner) that must
+    // not answer the official build's intents, nor have its own answered by the official build.
+    private val ACTION_LAUNCH_GAME = "${AppIdentity.ACTION_PREFIX}.LAUNCH_GAME"
     private const val ACTION_VIEW = "android.intent.action.VIEW"
-    private const val URI_SCHEME = "gamenative"
+    private val URI_SCHEME = AppIdentity.URI_SCHEME
     private const val URI_HOST = "run"
     private const val MAX_CONFIG_JSON_SIZE = 50000 // 50KB limit to prevent memory exhaustion
 

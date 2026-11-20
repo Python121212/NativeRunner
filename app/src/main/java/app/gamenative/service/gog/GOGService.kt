@@ -19,6 +19,7 @@ import app.gamenative.enums.Marker
 import app.gamenative.service.download.GameDownloadService
 import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.service.NotificationHelper
+import app.gamenative.utils.AppIdentity
 import app.gamenative.utils.CloudSaveBackupManager
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.LocaleHelper
@@ -57,8 +58,8 @@ class GOGService : Service() {
     }
 
     companion object {
-        private const val ACTION_SYNC_LIBRARY = "app.gamenative.GOG_SYNC_LIBRARY"
-        private const val ACTION_MANUAL_SYNC = "app.gamenative.GOG_MANUAL_SYNC"
+        private val ACTION_SYNC_LIBRARY = "${AppIdentity.ACTION_PREFIX}.GOG_SYNC_LIBRARY"
+        private val ACTION_MANUAL_SYNC = "${AppIdentity.ACTION_PREFIX}.GOG_MANUAL_SYNC"
         private const val SYNC_THROTTLE_MILLIS = 15 * 60 * 1000L // 15 minutes
 
         private var instance: GOGService? = null

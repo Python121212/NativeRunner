@@ -39,7 +39,9 @@ class ExternalRedistOffTest {
             .put("cpuListWoW64", "0,1,2,3")
             .put("suspendPolicy", "manual")
             .put("wincomponents", wincomponents)
-        val intent = Intent("app.gamenative.LAUNCH_GAME")
+        // The launch action is package-scoped (app.nativerunner here); a literal would parse as
+        // "not ours" and the test would fail on a null launch request.
+        val intent = Intent("${AppIdentity.ACTION_PREFIX}.LAUNCH_GAME")
             .putExtra("app_id", 400)
             .putExtra("container_config", config.toString())
         return IntentLaunchManager.parseLaunchIntent(intent, ApplicationProvider.getApplicationContext())!!.containerConfig!!

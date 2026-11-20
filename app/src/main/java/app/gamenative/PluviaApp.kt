@@ -73,6 +73,7 @@ class PluviaApp : SplitCompatApplication() {
         instance = this
 
         preloadSystemLibraries()
+        exportProcessPaths()
 
         // Allows to find resource streams not closed within GameNative and JavaSteam
         if (BuildConfig.DEBUG) {
@@ -461,6 +462,22 @@ class PluviaApp : SplitCompatApplication() {
                 cachedDefaultScreenSize = fallback
                 fallback
             }
+        }
+    }
+
+    /**
+     * Publishes this install's private paths as environment variables.
+     *
+     * evshim (preloaded into the Wine process and also loaded by the Java one) resolves its
+     * gamepad shm directory from `EVSHIM_BASE_PATH` and otherwise falls back to the literal
+     * `/data/data/app.gamenative/files`, which is wrong for NativeRunner (`app.nativerunner`).
+     * Setting it here also means the shipped, prebuilt `libevshim.so` needs no rebuild.
+     */
+    private fun exportProcessPaths() {
+        try {
+            android.system.Os.setenv("EVSHIM_BASE_PATH", "$dataDir/files", true)
+        } catch (t: Throwable) {
+            Timber.w(t, "[PluviaApp]: could not export EVSHIM_BASE_PATH")
         }
     }
 

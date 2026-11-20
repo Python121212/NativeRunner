@@ -53,6 +53,7 @@ import app.gamenative.ui.trackAiDebug
 import app.gamenative.ui.enums.Orientation
 import app.gamenative.ui.screen.support.SupportSession
 import app.gamenative.ui.util.LocalSnackbarHostController
+import app.gamenative.utils.AppIdentity
 import app.gamenative.ui.util.SnackbarHostController
 import app.gamenative.utils.AnimatedPngDecoder
 import app.gamenative.data.GameSource
@@ -100,7 +101,9 @@ class MainActivity : ComponentActivity() {
                 Build.MANUFACTURER.equals("Meta", true) ||
                 Build.BRAND.equals("oculus", true)
 
-        const val ACTION_OPEN_SUPPORT = "app.gamenative.OPEN_SUPPORT_CONVERSATION"
+        // Package-scoped: the corresponding PendingIntent is explicit, but the constant must not
+        // silently match the official build if it is ever delivered implicitly.
+        val ACTION_OPEN_SUPPORT = "${AppIdentity.ACTION_PREFIX}.OPEN_SUPPORT_CONVERSATION"
         const val EXTRA_SUPPORT_CONVERSATION = "support_conversation_id"
 
         // Store pending launch request to be processed after UI is ready

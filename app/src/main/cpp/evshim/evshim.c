@@ -88,7 +88,9 @@ static void build_gamepad_dir(char *out, size_t size)
 {
     const char *base = getenv("EVSHIM_BASE_PATH");
 
-    // fallback
+    // Fallback only: the Java side always exports EVSHIM_BASE_PATH because the application id
+    // depends on the build (NativeRunner installs as app.nativerunner, the official build as
+    // app.gamenative), so a literal here would point at the other app's private data.
     if (!base || !*base) {
         base = "/data/data/app.gamenative/files";
     }

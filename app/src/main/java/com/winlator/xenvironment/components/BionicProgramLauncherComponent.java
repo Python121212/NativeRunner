@@ -253,15 +253,19 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         final int MAX_PLAYERS = 4;
 
+        // The controller shm files live in this install's own data dir (the app id is
+        // app.nativerunner when NativeRunner is installed next to the official GameNative).
+        final String gamepadTmpDir = Container.APP_FILES_DIR + "/imagefs/tmp";
+
         // Get the number of enabled players directly from ControllerManager.
         for (int i = 0; i < MAX_PLAYERS; i++) {
             String memPath;
             if (i == 0) {
                 // Player 1 uses the original, non-numbered path that is known to work.
-                memPath = "/data/data/app.gamenative/files/imagefs/tmp/gamepad.mem";
+                memPath = gamepadTmpDir + "/gamepad.mem";
             } else {
                 // Players 2, 3, 4 use a 1-based index.
-                memPath = "/data/data/app.gamenative/files/imagefs/tmp/gamepad" + i + ".mem";
+                memPath = gamepadTmpDir + "/gamepad" + i + ".mem";
             }
 
             File memFile = new File(memPath);
@@ -427,6 +431,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         if (replacePath != null) ld_preload += ":" + replacePath;
 
         envVars.put("LD_PRELOAD", ld_preload);
+        // evshim's own default is /data/data/app.gamenative/files; Wine must look where this
+        // install (app.nativerunner) really keeps the gamepad shm files.
+        envVars.put("EVSHIM_BASE_PATH", Container.APP_FILES_DIR);
         envVars.put("EVSHIM_WINE", 1);
         envVars.put("EVSHIM_SHM_NAME", "controller-shm0");
         envVars.put("SDL_LINUX_JOYSTICK_CLASSIC", "1");

@@ -75,7 +75,13 @@ android {
     }
 
     defaultConfig {
-        applicationId = "app.gamenative"
+        // Installed as NativeRunner, next to the official GameNative (`app.gamenative`), so both
+        // can be installed at the same time. The namespace above stays `app.gamenative`: Kotlin
+        // packages and the JNI symbol table (`Java_app_gamenative_*`) are compile-time names and
+        // must not follow the id. Anything that really is a package id (private data dir, intent
+        // actions, URI schemes, activity aliases) reads BuildConfig.APPLICATION_ID instead of a
+        // literal — see app.gamenative.utils.AppIdentity.
+        applicationId = "app.nativerunner"
 
         minSdk = 26
 
@@ -85,6 +91,12 @@ android {
 
         versionCode = 29
         versionName = "1.4.1-upstream.2"
+
+        // The update endpoint (api.gamenative.app) describes the official build, whose APK is
+        // signed with a different key and has a different app id: offering it would fail to
+        // install and, since app id and key both differ, can never replace this build. In-app
+        // update checks are therefore off; releases come from this repository's GitHub releases.
+        buildConfigField("boolean", "IN_APP_UPDATES", "false")
 
         buildConfigField("boolean", "GOLD", "false")
         fun secret(name: String) =

@@ -20,7 +20,7 @@ object UpdateInstaller {
         onProgress: (Float) -> Unit
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            val apkFileName = "gamenative-v$versionName.apk"
+            val apkFileName = "NativeRunner-v$versionName.apk"
             val destFile = File(context.cacheDir, apkFileName)
 
             // Extract filename from URL for fetchFileWithFallback

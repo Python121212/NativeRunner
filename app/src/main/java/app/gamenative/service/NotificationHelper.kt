@@ -38,7 +38,9 @@ class NotificationHelper @Inject constructor(@ApplicationContext appContext: Con
         private const val NOTIFICATION_ID_SUMMARY = 100
 
         const val ACTION_EXIT = "com.oxgames.pluvia.EXIT"
-        const val ACTION_SUPPORT_STOP = "app.gamenative.SUPPORT_WAIT_STOP"
+        // Package-scoped: the receiver intent is explicit, but the constant must never match the
+        // official build's if it is ever delivered implicitly.
+        val ACTION_SUPPORT_STOP = "${app.gamenative.utils.AppIdentity.ACTION_PREFIX}.SUPPORT_WAIT_STOP"
 
         const val CHANNEL_SUPPORT_WAIT = "support_wait"
         const val CHANNEL_SUPPORT_REPLIES = "support_replies_v2"

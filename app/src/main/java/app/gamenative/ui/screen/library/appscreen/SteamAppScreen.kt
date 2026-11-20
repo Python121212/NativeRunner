@@ -1198,7 +1198,10 @@ class SteamAppScreen : BaseAppScreen() {
                 scope.launch {
                     showMoveDialog = true
                     StorageUtils.moveGamesFromOldPath(
-                        Paths.get(Environment.getExternalStorageDirectory().absolutePath, "GameNative", "Steam").pathString,
+                        // Legacy migration source inside *this* app's folder. The official build's
+                        // GameNative/Steam is never moved or deleted; GameFileTakeover registers
+                        // those games in place instead.
+                        Paths.get(Environment.getExternalStorageDirectory().absolutePath, "NativeRunner", "Steam").pathString,
                         oldGamesDirectory,
                         onProgressUpdate = { currentFile, fileProgress, movedFiles, totalFiles ->
                             current = currentFile

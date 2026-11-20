@@ -73,6 +73,7 @@ import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.theme.ThemedAlertDialog
 import app.gamenative.ui.util.ContainerConfigTransfer
 import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.utils.AppIdentity
 import app.gamenative.utils.BestConfigService
 import app.gamenative.utils.CloudSaveBackupManager
 import app.gamenative.utils.ContainerUtils
@@ -680,7 +681,7 @@ abstract class BaseAppScreen {
         val gameId = getGameId(libraryItem)
         val gameSource = getGameSource(libraryItem).name
         val gameName = getGameName(context, libraryItem)
-        val uri = "gamenative://run?appid=$gameId&gamesource=$gameSource"
+        val uri = "${AppIdentity.URI_SCHEME}://run?appid=$gameId&gamesource=$gameSource"
         val labelText = context.getString(R.string.app_name) + " $gameName"
         val clipboardManager = LocalClipboard.current
         val scope = rememberCoroutineScope()

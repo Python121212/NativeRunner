@@ -7,6 +7,11 @@ import java.util.Base64
 /** Public/native Nexus OAuth configuration. A client secret must never be shipped in the app. */
 object NexusOAuthConfig {
     const val CLIENT_ID = "gamenative"
+    /**
+     * Do not parameterise this by application id: the redirect is registered with Nexus Mods
+     * against the `gamenative` client and cannot be changed from the app. It stays the same for
+     * every build, and the PKCE `state` check decides which installed app completes a sign-in.
+     */
     const val REDIRECT_URI = "app.gamenative://oauth/callback"
     const val AUTHORIZATION_ENDPOINT = "https://users.nexusmods.com/oauth/authorize"
     const val TOKEN_ENDPOINT = "https://users.nexusmods.com/oauth/token"

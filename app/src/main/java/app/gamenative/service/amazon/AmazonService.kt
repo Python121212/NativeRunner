@@ -18,6 +18,7 @@ import app.gamenative.events.AndroidEvent
 import app.gamenative.service.download.GameDownloadService
 import app.gamenative.service.download.NativeTreeDelete
 import app.gamenative.service.NotificationHelper
+import app.gamenative.utils.AppIdentity
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.ExecutableSelectionUtils
 import app.gamenative.utils.MarkerUtils
@@ -78,8 +79,8 @@ class AmazonService : Service() {
     private val activeDownloadPaths = ConcurrentHashMap<String, String>()
 
     companion object {
-        private const val ACTION_SYNC_LIBRARY = "app.gamenative.AMAZON_SYNC_LIBRARY"
-        private const val ACTION_MANUAL_SYNC = "app.gamenative.AMAZON_MANUAL_SYNC"
+        private val ACTION_SYNC_LIBRARY = "${AppIdentity.ACTION_PREFIX}.AMAZON_SYNC_LIBRARY"
+        private val ACTION_MANUAL_SYNC = "${AppIdentity.ACTION_PREFIX}.AMAZON_MANUAL_SYNC"
         private const val SYNC_THROTTLE_MILLIS = 15 * 60 * 1000L // 15 minutes
         private var instance: AmazonService? = null
 

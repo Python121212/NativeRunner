@@ -9,14 +9,9 @@ object IconSwitcher {
     fun applyLauncherIcon(context: Context, useAltIcon: Boolean) {
         val packageManager = context.packageManager
 
-        val defaultAlias = ComponentName(
-            context,
-            "app.gamenative.MainActivityAliasDefault",
-        )
-        val altAlias = ComponentName(
-            context,
-            "app.gamenative.MainActivityAliasAlt",
-        )
+        // Activity aliases live in the installed package (app.nativerunner for NativeRunner).
+        val defaultAlias = ComponentName(context, AppIdentity.mainActivityAlias(alt = false))
+        val altAlias = ComponentName(context, AppIdentity.mainActivityAlias(alt = true))
 
         val defaultState = if (useAltIcon)
             PackageManager.COMPONENT_ENABLED_STATE_DISABLED
