@@ -125,7 +125,8 @@ object GameFileTakeover {
             }
         }
 
-        val steps = listOf<Pair<String, (File) -> Unit>>(
+        // GOG/Epic/Amazon read their library rows, so the steps are suspend lambdas.
+        val steps = listOf<Pair<String, suspend (File) -> Unit>>(
             "Steam" to { root -> scanSteam(root, ::addCandidate, errors) },
             "GOG" to { root -> scanGog(root, ::addCandidate) },
             "Epic" to { root -> scanEpic(root, ::addCandidate) },
