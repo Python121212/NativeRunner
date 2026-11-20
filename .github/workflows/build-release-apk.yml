@@ -356,13 +356,15 @@ jobs:
           echo "APK_VERSION=${VERSION}" >> "$GITHUB_ENV"
           echo "APK_VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_ENV"
           mkdir -p out
+          # The artefact is named after this project (NativeRunner), not after upstream, so a
+          # downloaded file is identifiable even when both builds sit in the same folder.
           if ls app/build/outputs/apk/legacy/release-signed/*.apk >/dev/null 2>&1; then
             cp app/build/outputs/apk/legacy/release-signed/*.apk \
-              "out/GameNative-${VERSION}-legacy-release-signed.apk"
+              "out/NativeRunner-${VERSION}-legacy-release-signed.apk"
           fi
           if ls app/build/outputs/apk/modern/release-signed/*.apk >/dev/null 2>&1; then
             cp app/build/outputs/apk/modern/release-signed/*.apk \
-              "out/GameNative-${VERSION}-modern-release-signed.apk"
+              "out/NativeRunner-${VERSION}-modern-release-signed.apk"
           fi
           ls -lh out/
 
@@ -397,7 +399,7 @@ jobs:
             /tmp/release-notes.md
           gh release create "$TAG" out/*.apk \
             --target "${{ github.sha }}" \
-            --title "GameNative ${APK_VERSION} (build #${{ github.run_number }})" \
+            --title "NativeRunner ${APK_VERSION} (build #${{ github.run_number }})" \
             --notes-file /tmp/release-notes.md
 
       - name: Upload APK as workflow artifact
