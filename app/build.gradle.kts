@@ -89,8 +89,12 @@ android {
         buildConfigField("boolean", "XR_BUILD", "false")
         buildConfigField("boolean", "MODERN_XR", "false")
 
-        versionCode = 29
-        versionName = "1.4.1-upstream.2"
+        // Android refuses an in-place update whose versionCode is not higher than the
+        // installed one. CI stamps the real value per release (see "Stamp the release
+        // versionCode" in build-release-apk.yml); this literal is only the floor for a
+        // local build and stays above every published APK up to apk-45 (all were 29).
+        versionCode = 46
+        versionName = "1.4.1-upstream.3"
 
         // The update endpoint (api.gamenative.app) describes the official build, whose APK is
         // signed with a different key and has a different app id: offering it would fail to

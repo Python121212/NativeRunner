@@ -210,6 +210,22 @@ jobs:
           done
           echo "local.properties entries: $(grep -c '=' local.properties || true)"
 
+      # Every release must carry a versionCode higher than the previous one, or the
+      # in-place update is refused ("app not installed"/"cannot update") even though the
+      # certificate matches. Every APK up to apk-45 kept the module default (29), so none
+      # of them could replace another. Derive it from the release number instead: base 46
+      # is above everything already published, and each later run adds to it.
+      - name: Stamp the release versionCode
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          : "${RUN_NUMBER:?run number is required}"
+          CODE=$((46 + RUN_NUMBER))
+          echo "Stamping versionCode ${CODE} (run #${RUN_NUMBER}) into app/build.gradle.kts"
+          sed -i -E "s/^([[:space:]]*)versionCode[[:space:]]*=[[:space:]]*[0-9]+/\1versionCode = ${CODE}/" app/build.gradle.kts
+          grep -nE '^[[:space:]]*versionCode' app/build.gradle.kts
+
       - name: Build release-signed APKs
         env:
           FLAVORS: ${{ inputs.flavors || 'legacy' }}
@@ -387,6 +403,7 @@ jobs:
           Automated release-signed build of `@SHA@` — version @VERSION@ (versionCode @CODE@), flavors: @FLAVORS@.
 
           - 署名: ci/release のリリース鍵（自己署名）。証明書 SHA-256 は `81:39:18:80:38:67:13:F8:55:26:C2:20:80:FF:A4:3A:80:0A:B2:8B:75:5C:DA:B9:53:4B:7A:2B:CD:6F:E8:E6` で、apk-20 以降ずっと同じ鍵です
+          - versionCode @CODE@ はリリースごとに増加します（apk-46 以降）。過去のビルドはすべて versionCode 29 で、同一値のため上書き更新が拒否されていました
           - 上流 GameNative とは署名が異なるため、上流版からの上書き更新はできません（本リポジトリの前回版からは上書きできます）
           - ビルドログ: @RUN_URL@
           NOTES
