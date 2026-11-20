@@ -774,6 +774,11 @@ class EpicManager @Inject constructor(
         }
     }
 
+    /** Every Epic row, for the takeover scan that matches collected folders to library entries. */
+    suspend fun getAllGames(): List<EpicGame> = withContext(Dispatchers.IO) {
+        epicGameDao.getAllAsList()
+    }
+
     suspend fun getNonInstalledGames(): List<EpicGame> {
         return withContext(Dispatchers.IO) {
             epicGameDao.getNonInstalledGames()

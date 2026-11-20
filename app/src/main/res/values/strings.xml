@@ -1645,6 +1645,10 @@
     <string name="settings_interface_no_external_storage">No external storage detected</string>
     <string name="settings_interface_external_storage_subtitle">Save games to external storage</string>
     <string name="settings_interface_storage_volume_title">Storage volume</string>
+    <string name="settings_interface_adopt_existing_title">Games already on this device</string>
+    <string name="settings_interface_adopt_existing_subtitle">Find game folders left by another GameNative build and register them, so nothing is downloaded twice</string>
+    <string name="settings_interface_adopt_existing_last_scan">Last checked: %1$s</string>
+    <string name="settings_interface_adopt_existing_never">Not checked yet</string>
     <string name="settings_interface_download_server_title">Steam Download Server</string>
     <string name="settings_interface_restart_required_title">Restart Required</string>
 
@@ -3609,4 +3613,27 @@
     <string name="support_wait_stop">Stop</string>
     <string name="support_reply_ready_tap">Tap to read it.</string>
     <string name="support_notify_me">Notify me when the reply arrives</string>
+
+    <!-- Game file takeover: folders left by another GameNative build -->
+    <string name="takeover_scan_title">Looking for game folders</string>
+    <string name="takeover_scan_progress">%1$d / %2$d — %3$s</string>
+    <string name="takeover_found_title">%1$d game(s) can be carried over</string>
+    <string name="takeover_found_message">These game folders are already on this device. They will be registered as installed. Nothing is moved or deleted.</string>
+    <string name="takeover_found_sources">Found: %1$s</string>
+    <string name="takeover_none_title">No game folders to carry over</string>
+    <string name="takeover_none_message">Checked %1$d location(s) and found no unregistered game folders.</string>
+    <string name="takeover_already_installed">Already registered: %1$d</string>
+    <string name="takeover_select_all">Select all</string>
+    <string name="takeover_select_none">Clear all</string>
+    <string name="takeover_adopt_action">Carry over (%1$d)</string>
+    <string name="takeover_rescan">Scan again</string>
+    <string name="takeover_adopting_title">Registering</string>
+    <string name="takeover_done_title">Carried over %1$d game(s)</string>
+    <string name="takeover_done_message">They now show as installed in the library. The game folders stayed where they were.</string>
+    <string name="takeover_close">Close</string>
+    <string name="takeover_evidence_metadata">store metadata file</string>
+    <string name="takeover_evidence_name">folder name match</string>
+    <string name="takeover_errors">Could not check: %1$d location(s)</string>
+    <string name="takeover_error_detail">%1$s</string>
+    <string name="takeover_scan_failed">Scan failed: %1$s</string>
 </resources>
